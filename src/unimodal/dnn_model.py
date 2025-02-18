@@ -7,7 +7,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from torch.utils.data import TensorDataset, DataLoader
-# from models.gbnnModel import GrowNet
 import random
 def set_seed(seed):
     random.seed(seed)
@@ -19,53 +18,8 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False     # 禁用自动优化
 
 set_seed(42)  # 设置全局种子
-
-
-class RegressionDNN(nn.Module):
-    def __init__(self):
-        super(RegressionDNN, self).__init__()
-        self.fc1 = nn.Linear(19, 128)
-        self.bn1 = nn.BatchNorm1d(128)
-        self.fc2 = nn.Linear(128, 256)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.fc3 = nn.Linear(256, 128)
-        self.bn3 = nn.BatchNorm1d(128)
-        self.fc4 = nn.Linear(128, 64)
-        self.bn4 = nn.BatchNorm1d(64)
-        self.fc5 = nn.Linear(64, 1)
-        self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.relu(self.bn1(self.fc1(x)))
-        x = self.relu(self.bn2(self.fc2(x)))
-        x = self.relu(self.bn3(self.fc3(x)))
-        x = self.relu(self.bn4(self.fc4(x)))
-        x = self.fc5(x)
-        return x
-
-
-# 修正的GrowNet架构
-class GrowNet(nn.Module):
-    def __init__(self, num_trees=7):
-        super().__init__()
-        self.trees = nn.ModuleList([RegressionDNN() for _ in range(num_trees)])
-        self.weights = nn.ParameterList([nn.Parameter(torch.ones(1)) for _ in range(num_trees)])
-
-    def partial_predict(self, x, num_trees):
-        with torch.no_grad():
-            pred = torch.zeros(x.size(0), 1).to(x.device)
-            for tree, weight in zip(self.trees[:num_trees], self.weights[:num_trees]):
-                pred += weight * tree(x)
-        return pred
-
-    def forward(self, x):
-        total = torch.zeros(x.size(0), 1).to(x.device)
-        for tree, weight in zip(self.trees, self.weights):
-            total += weight * tree(x)
-        return total
-
 # 数据路径
-file_path = "../data/processed/MemTrOC-Dataset.csv"
+file_path = "../../data/processed/MemTrOC-Dataset.csv"
 data = pd.read_csv(file_path)
 
 # 提取特征和标签
@@ -83,7 +37,9 @@ y = data.iloc[:, 23].values  # 标签
 # X_train, X_val, y_train, y_val = train_test_split(
 #     X_train, y_train, test_size=0.1, random_state=42
 # )
-# 先划分数据集再进行归一化
+
+
+# 先划分数据集再进行归一化（关键修改！）
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
 
@@ -114,12 +70,33 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
+# 定义模型
+class ComplexNN(nn.Module):
+    def __init__(self, input_dim):
+        super(ComplexNN, self).__init__()
+        self.fc1 = nn.Linear(input_dim, 128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 256)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(256, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc4 = nn.Linear(128, 64)
+        self.bn4 = nn.BatchNorm1d(64)
+        self.fc5 = nn.Linear(64, 1)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.relu(self.bn1(self.fc1(x)))
+        x = self.relu(self.bn2(self.fc2(x)))
+        x = self.relu(self.bn3(self.fc3(x)))
+        x = self.relu(self.bn4(self.fc4(x)))
+        x = self.fc5(x)
+        return x
 
 
 # 初始化模型、损失函数和优化器
 input_dim = X.shape[1]
-# model = ComplexNN(input_dim)
-model = GrowNet(5)
+model = ComplexNN(input_dim)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 

@@ -20,6 +20,7 @@ class MLP_2HL(nn.Module):
         if lower_f is not None:
             x = torch.cat([x, lower_f], dim=1)
             x = self.bn2(x)
+        # print(x.shape)
         out = self.lrelu(self.in_layer(x))
         out = self.bn(out)
         out = self.hidden_layer(out)

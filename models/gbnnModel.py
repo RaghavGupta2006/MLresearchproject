@@ -100,47 +100,49 @@ def get_new_model():
     return net
 
 
-# 定义一个简单的神经网络树
-class RegressionCNN(nn.Module):
+# 改进的回归DNN模型
+class RegressionDNN(nn.Module):
     def __init__(self):
-        super(RegressionCNN, self).__init__()
-        # 第一层卷积层
-        self.conv1 = nn.Conv1d(in_channels=1, out_channels=16, kernel_size=2)
-        self.pool1 = nn.MaxPool1d(kernel_size=2)
-        # 第二层卷积层
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2)
-        self.pool2 = nn.MaxPool1d(kernel_size=4)
-        # 全连接层
-        self.fc = nn.Linear(in_features=32, out_features=1)  # 假设我们只有一个输出值
+        super(RegressionDNN, self).__init__()
+        self.fc1 = nn.Linear(19, 128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.fc2 = nn.Linear(128, 256)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.fc3 = nn.Linear(256, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc4 = nn.Linear(128, 64)
+        self.bn4 = nn.BatchNorm1d(64)
+        self.fc5 = nn.Linear(64, 1)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = x.reshape(-1, 1, 16)
-        # 第一层卷积和池化
-        x = self.pool1(torch.relu(self.conv1(x)))
-        # 第二层卷积和池化
-        x = self.pool2(torch.relu(self.conv2(x)))
-        # 扁平化处理
-        x = x.view(x.size(0), -1)
-        # 全连接层
-        x = self.fc(x)  # 不使用激活函数，因为这是回归任务
+        x = self.relu(self.bn1(self.fc1(x)))
+        x = self.relu(self.bn2(self.fc2(x)))
+        x = self.relu(self.bn3(self.fc3(x)))
+        x = self.relu(self.bn4(self.fc4(x)))
+        x = self.fc5(x)
         return x
 
 
-# 定义GrowNet
+# 修正的GrowNet架构
 class GrowNet(nn.Module):
     def __init__(self, num_trees=7):
-        super(GrowNet, self).__init__()
-        self.trees = nn.ModuleList([RegressionCNN() for _ in range(num_trees)])
+        super().__init__()
+        self.trees = nn.ModuleList([RegressionDNN() for _ in range(num_trees)])
+        self.weights = nn.ParameterList([nn.Parameter(torch.ones(1)) for _ in range(num_trees)])
+
+    def partial_predict(self, x, num_trees):
+        with torch.no_grad():
+            pred = torch.zeros(x.size(0), 1).to(x.device)
+            for tree, weight in zip(self.trees[:num_trees], self.weights[:num_trees]):
+                pred += weight * tree(x)
+        return pred
 
     def forward(self, x):
-        predictions = []
-        # residual = x.clone()
-        residual = x
-        for tree in self.trees:
-            prediction = tree(residual)
-            predictions.append(prediction)
-            residual = residual - prediction
-        return sum(predictions)
+        total = torch.zeros(x.size(0), 1).to(x.device)
+        for tree, weight in zip(self.trees, self.weights):
+            total += weight * tree(x)
+        return total
 
 
 def get_1dcnn_model(num_trees):
