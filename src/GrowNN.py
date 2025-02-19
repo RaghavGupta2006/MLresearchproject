@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import time
 
-from models.weaklearner import MLP_2HL
+from models.weaklearner import MLP_2HL, MLP_3HL
 from models.ensemblemodel import DynamicNet
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
@@ -30,18 +30,18 @@ parser = argparse.ArgumentParser()
 
 # Integer parameters with no default value and required flag
 parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19)  # 输入特征维度
-parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=64)
+parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=128)  # 弱学习器隐藏层维度
 
 # Float parameters with no default value and required flag
 parser.add_argument('--boost_rate', type=float, help='Boosting rate', default=1.0)
 parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
-parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=.0e-3)
+parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)
 
 # Integer parameters with default values
-parser.add_argument('--num_nets', type=int, help='Number of networks', default=10)
-parser.add_argument('--batch_size', type=int, help='Batch size', default=32)
-parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=20)
-parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=50)
+parser.add_argument('--num_nets', type=int, help='Number of networks', default=5)
+parser.add_argument('--batch_size', type=int, help='Batch size', default=64)
+parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
+parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
 
 # String parameters with no default value and required flag
 parser.add_argument('--data', type=str, help='Path to data')
@@ -56,7 +56,7 @@ parser.add_argument('--out_f', type=str, help='Output file path', default='../ch
 parser.add_argument('--sparse', action='store_true', help='Use sparse representation')
 parser.add_argument('--normalization', type=lambda x: (str(x).lower() == 'true'), default=False,
                     help='Enable normalization (true/false)')
-parser.add_argument('--cv', type=lambda x: (str(x).lower() == 'true'), default=False,
+parser.add_argument('--cv', type=lambda x: (str(x).lower() == 'true'), default=True,
                     help='Enable cross-validation (true/false)')
 parser.add_argument('--cuda', action='store_true', help='Use CUDA for GPU acceleration')
 
@@ -101,6 +101,7 @@ def init_gbnn(train):
     # print(f'Blind Logloss: {blind_acc}')
     return float(np.log(positive / negative))
 
+
 def mean_absolute_percentage_error(y_true, y_pred):
     """
     Calculate Mean Absolute Percentage Error.
@@ -113,6 +114,7 @@ def mean_absolute_percentage_error(y_true, y_pred):
 
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -121,6 +123,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
     torch.backends.cudnn.benchmark = False  # 禁用自动优化
+
 
 if __name__ == "__main__":
 
@@ -134,8 +137,7 @@ if __name__ == "__main__":
     #     val_loader = DataLoader(val, args.batch_size, shuffle=True, drop_last=False, num_workers=2)
     # -----------------------------------------------------
 
-
-    set_seed(42)  # 设置全局种子
+    set_seed(41)  # 设置全局种子
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"训练设备：{device}")
     # mix_seed(9204)
@@ -147,10 +149,9 @@ if __name__ == "__main__":
     X = data.iloc[:, 4:23].values  # 特征（19维）
     y = data.iloc[:, 23].values  # 标签
 
-
     # 先划分数据集再进行归一化（关键修改！）
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=41)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2 / 0.9, random_state=41)
     N = len(X_train)
     # 只在训练集上拟合归一化器
     scaler_X = MinMaxScaler()
@@ -173,7 +174,7 @@ if __name__ == "__main__":
     test_dataset = TensorDataset(X_test_t, y_test_t)
 
     # 创建 DataLoader
-    batch_size = 32
+    batch_size = args.batch_size
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -313,9 +314,9 @@ if __name__ == "__main__":
     # torch.save(trained_model.state_dict(), 'checkpoint/1DGBCNN_model.pth')
 
     # 计算训练集、验证集和测试集上的MAE
-    mae_train = mean_absolute_error(y_train.numpy(), prediction_train.detach().numpy())
-    mae_val = mean_absolute_error(y_val.numpy(), prediction_val.detach().numpy())
-    mae_test = mean_absolute_error(y_test.numpy(), prediction_test.detach().numpy())
+    mae_train = mean_absolute_error(y_train, prediction_train.detach().numpy())
+    mae_val = mean_absolute_error(y_val, prediction_val.detach().numpy())
+    mae_test = mean_absolute_error(y_test, prediction_test.detach().numpy())
 
     # # 计算训练集、验证集和测试集上的MAPE
     # mape_train = mean_absolute_percentage_error(y_train.numpy(), prediction_train.detach().numpy())

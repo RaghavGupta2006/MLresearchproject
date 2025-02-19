@@ -35,7 +35,7 @@ param_grid = {
 }
 # Best parameters found:  {'learning_rate': 0.1, 'max_depth': 5, 'min_samples_leaf': 2, 'min_samples_split': 6,
 # 'n_estimators': 300, 'subsample': 0.8} 5. 初始化模型
-model = GradientBoostingRegressor(random_state=42)
+model = GradientBoostingRegressor(random_state=41)
 
 
 # # 6. 使用 GridSearchCV 进行网格搜索和交叉验证
@@ -47,7 +47,7 @@ model = GradientBoostingRegressor(random_state=42)
 #     verbose=1  # 输出详细进度信息
 # )
 
-grid_search = GradientBoostingRegressor(learning_rate=0.1, max_depth=5, n_estimators=300, alpha=0.7, random_state=92)
+grid_search = GradientBoostingRegressor(learning_rate=0.1, max_depth=5, n_estimators=300, alpha=0.7, random_state=41)
 
 
 # 7. 训练模型
