@@ -1,4 +1,8 @@
-#!/usr/bin/env python
+from dataset.dataset import TableGraphDataset
+from src.utils.smiles2graph import create_graph_data_from_smiles
+import torch
+from torch_geometric.data import Batch
+from torch.utils.data import DataLoader
 import numpy as np
 import argparse
 import copy
@@ -6,8 +10,8 @@ import torch
 import torch.nn as nn
 import time
 
-from models.weaklearner import MLP_2HL, MLP_3HL
-from models.ensemblemodel import DynamicNet
+from models.weaklearner import MLP_GNN
+from models.ensemblemodel import DynamicNetForMLPGNN
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from torch.optim import SGD, Adam
@@ -26,11 +30,27 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from torch.utils.data import TensorDataset, DataLoader
 import random
 
+"""
+用于 表格数据 + 图数据 训练
+table_dim_in, table_dim_hidden, gnn_input_dim, out_dim, gnn_hidden,
+                 combined_dim,
+                 dim_hidden1,
+                 dim_hidden2
+"""
 parser = argparse.ArgumentParser()
 
 # Integer parameters with no default value and required flag
 parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19)  # 输入特征维度
 parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=128)  # 弱学习器隐藏层维度
+
+parser.add_argument('--table_dim_in', type=int, default=19)  # 表格数据输入维度
+parser.add_argument('--table_dim_hidden', type=int, default=128)  # 用于提取表格数据特征的网络隐藏层维度
+parser.add_argument('--gnn_input_dim', type=int, default=9)  # 图数据 节点维度
+parser.add_argument('--out_dim', type=int, default=128)  # 表格数据特征 与 图数据特征 的输出维度
+parser.add_argument('--gnn_hidden', type=int, default=128)  # 用于提取图数据特征的网络隐藏层维度
+parser.add_argument('--combined_dim', type=int, default=128)  # 表格数据特征 与 图数据特征 融合后的维度
+parser.add_argument('--dim_hidden1', type=int, default=128)  # 特征融合后走的网络隐藏层维度
+parser.add_argument('--dim_hidden2', type=int, default=128)  # 特征融合后走的网络隐藏层维度
 
 # Float parameters with no default value and required flag
 parser.add_argument('--boost_rate', type=float, help='Boosting rate', default=1.0)
@@ -47,7 +67,7 @@ parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', 
 parser.add_argument('--data', type=str, help='Path to data')
 parser.add_argument('--tr', type=str, help='Path to training data')
 parser.add_argument('--te', type=str, help='Path to testing data')
-parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowNN.pth')
+parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN.pth')
 
 # Float parameter with default value
 
@@ -76,12 +96,12 @@ def root_mse(net_ensemble, loader):
     loss = 0
     total = 0
 
-    for x, y in loader:
+    for x, graph_data, y in loader:
         if args.cuda:
             x = x
 
         with torch.no_grad():
-            _, out = net_ensemble.forward(x)
+            _, out = net_ensemble.forward(x, graph_data)
         y = y.cpu().numpy().reshape(len(y), 1)
         out = out.cpu().numpy().reshape(len(y), 1)
         loss += mean_squared_error(y, out) * len(y)
@@ -115,6 +135,20 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 
+def my_collate(batch):
+    """
+    自定义 collate 函数来处理包含 Data 对象的 batch。
+    """
+    table_features, graph_data, labels = zip(*batch)
+    # 将 smiles_features 和 labels 转换成张量
+    table_features = torch.stack(table_features, dim=0)
+    labels = torch.tensor(labels, dtype=torch.float32)
+    # 使用 torch_geometric.data.Batch 的 from_data_list 方法来批量处理 Data 对象
+    graph_data = Batch.from_data_list(graph_data)
+
+    return table_features, graph_data, labels
+
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -126,39 +160,29 @@ def set_seed(seed):
 
 
 if __name__ == "__main__":
-
-    # -----------------------------------------------------
-    # train, test, val = get_data()
-    # N = len(train)
-    # print(args.data + ' training and test datasets are loaded!')
-    # train_loader = DataLoader(train, args.batch_size, shuffle=True, drop_last=False, num_workers=2)
-    # test_loader = DataLoader(test, args.batch_size, shuffle=False, drop_last=False, num_workers=2)
-    # if args.cv:
-    #     val_loader = DataLoader(val, args.batch_size, shuffle=True, drop_last=False, num_workers=2)
-    # -----------------------------------------------------
-
     set_seed(41)  # 设置全局种子
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"训练设备：{device}")
-    # mix_seed(9204)
     # 数据路径
     file_path = "../data/processed/MemTrOC-Dataset.csv"
     data = pd.read_csv(file_path)
-
+    # data = data.head(10)
     # 提取特征和标签
     X = data.iloc[:, 4:23].values  # 特征（19维）
     y = data.iloc[:, 23].values  # 标签
 
+    smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
+
     # 先划分数据集再进行归一化（关键修改！）
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=41)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2 / 0.9, random_state=41)
-    N = len(X_train)
+    X_train, X_test, y_train, y_test, smiles_train, smiles_test = train_test_split(X, y, smiles_list, test_size=0.1,
+                                                                                   random_state=41)
+    X_train, X_val, y_train, y_val, smiles_train, smiles_val = train_test_split(X_train, y_train, smiles_train,
+                                                                                test_size=0.2 / 0.9, random_state=41)
     # 只在训练集上拟合归一化器
     scaler_X = MinMaxScaler()
     X_train = scaler_X.fit_transform(X_train)
     X_val = scaler_X.transform(X_val)  # 使用训练集的scaler
     X_test = scaler_X.transform(X_test)  # 使用训练集的scaler
-
     # 转换为 PyTorch Tensor
     X_train_t = torch.tensor(X_train, dtype=torch.float32)
     X_val_t = torch.tensor(X_val, dtype=torch.float32)
@@ -168,17 +192,34 @@ if __name__ == "__main__":
     y_val_t = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
     y_test_t = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-    # 创建 TensorDataset
-    train_dataset = TensorDataset(X_train_t, y_train_t)
-    val_dataset = TensorDataset(X_val_t, y_val_t)
-    test_dataset = TensorDataset(X_test_t, y_test_t)
+    # 创建数据集
+    train_dataset = TableGraphDataset(X_train_t, smiles_train, y_train_t, create_graph_data_from_smiles)
+    val_dataset = TableGraphDataset(X_val_t, smiles_val, y_val_t, create_graph_data_from_smiles)
+    test_dataset = TableGraphDataset(X_test_t, smiles_test, y_test_t, create_graph_data_from_smiles)
 
-    # 创建 DataLoader
     batch_size = args.batch_size
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
 
+    # # 打印 DataLoader 的第一个批次
+    # for tables_batch, graphs_batch, labels_batch in train_loader:
+    #     # 打印表格特征、图数据和标签
+    #     print("Tables Batch Shape:", tables_batch.shape)
+    #     print("Tables Batch[0]:", tables_batch[0])
+    #
+    #     print("Graphs Batch:", graphs_batch)
+    #     print("Graphs Batch[0]:", graphs_batch[0])
+    #     print("graphs_batch[0].x:", graphs_batch[0].x)
+    #     print("graphs_batch[0].edge_index:", graphs_batch[0].edge_index)
+    #     print("graphs_batch[0].y:", graphs_batch[0].y)
+    #
+    #     print("Labels Batch Shape:", labels_batch.shape)
+    #     print("Labels Batch[0]:", labels_batch[0])
+    #
+    #     # 如果只需要打印一条数据，可以在这里 break
+    #     break
+    N = len(X_train)
     print(type(args.lr))
     print(type(args.boost_rate))
 
@@ -186,13 +227,13 @@ if __name__ == "__main__":
     val_rmse = best_rmse
     best_stage = args.num_nets - 1
     c0 = y_train.mean()  # init_gbnn(train) # c0是训练集目标值的平均值
-    net_ensemble = DynamicNet(c0, args.boost_rate)  # 初始化集成网络，由多个弱学习器组成
+    net_ensemble = DynamicNetForMLPGNN(c0, args.boost_rate)  # 初始化集成网络，由多个弱学习器组成
     loss_f1 = nn.MSELoss()
     loss_models = torch.zeros((args.num_nets, 3))
     for stage in range(args.num_nets):  # 几个弱学习器就几个循环
         t0 = time.time()
         # 如果是第一个弱学习器，隐藏层维度和后面的弱学习器不一样
-        model = MLP_2HL.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
+        model = MLP_GNN.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
         if args.cuda:
             model
 
@@ -200,16 +241,16 @@ if __name__ == "__main__":
         net_ensemble.to_train()  # Set the models in ensemble net to train mode
         stage_mdlloss = []  # 保存每一次循环的损失。每多一次循环就多一个弱学习器。
         for epoch in range(args.epochs_per_stage):  # 在每一次循环中训练当前的弱学习器，弱学习器去学习残差
-            for i, (x, y) in enumerate(train_loader):
+            for i, (x, graph_data, y) in enumerate(train_loader):
 
                 if args.cuda:
                     x = x
                     y = torch.as_tensor(y, dtype=torch.float32).view(-1, 1)
-                middle_feat, out = net_ensemble.forward(x)  # 使用多个弱学习器组合的学习器去得到预测值以及倒数第二层输出
+                middle_feat, out = net_ensemble.forward(x, graph_data)  # 使用多个弱学习器组合的学习器去得到预测值以及倒数第二层输出
                 out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
                 grad_direction = -(out - y)  # 根据预测值得到残差
 
-                _, out = model(x, middle_feat)  # 使用当前弱学习器去学习残差，x以及强学习器的倒数第二层作为输入
+                _, out = model(x, graph_data, middle_feat)  # 使用当前弱学习器去学习残差，x以及强学习器的倒数第二层作为输入
                 out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
                 loss = loss_f1(net_ensemble.boost_rate * out, grad_direction)  # T
 
@@ -234,10 +275,10 @@ if __name__ == "__main__":
             optimizer = get_optim(net_ensemble.parameters(), args.lr / lr_scaler, args.L2)
             for _ in range(args.correct_epoch):
                 stage_loss = []
-                for i, (x, y) in enumerate(train_loader):
+                for i, (x, graph_data, y) in enumerate(train_loader):
                     if args.cuda:
                         x, y = x, y.view(-1, 1)
-                    _, out = net_ensemble.forward_grad(x)
+                    _, out = net_ensemble.forward_grad(x, graph_data)
                     out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
 
                     loss = loss_f1(out, y)
@@ -257,7 +298,7 @@ if __name__ == "__main__":
             f'Loss: {sl: .5f}')
 
         net_ensemble.to_file(args.out_f)
-        net_ensemble = DynamicNet.from_file(args.out_f, lambda stage: MLP_2HL.get_model(stage, args))
+        net_ensemble = DynamicNetForMLPGNN.from_file(args.out_f, lambda stage: MLP_GNN.get_model(stage, args))
 
         if args.cuda:
             net_ensemble.to_cuda()
@@ -284,7 +325,7 @@ if __name__ == "__main__":
     np.savez(fname, rmse=loss_models, params=args)
 
     print("best_stage:", best_stage)
-    net_ensemble = DynamicNet.from_file(args.out_f, lambda best_stage: MLP_2HL.get_model(best_stage, args))
+    net_ensemble = DynamicNetForMLPGNN.from_file(args.out_f, lambda best_stage: MLP_GNN.get_model(best_stage, args))
 
     _, prediction_train = net_ensemble.forward(X_train_t)
     _, prediction_val = net_ensemble.forward(X_val_t)
