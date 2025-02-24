@@ -97,7 +97,7 @@ class DynamicNetForMLPGNN(object):
         self.c0 = c0
         self.lr = lr
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.boost_rate = nn.Parameter(torch.tensor(self.lr, requires_grad=True, device=self.device))
+        self.boost_rate = nn.Parameter(torch.tensor(self.lr, requires_grad=True))
 
     def add(self, model):
         self.models.append(model)
@@ -138,6 +138,8 @@ class DynamicNetForMLPGNN(object):
                 else:
                     middle_feat_cum, pred = m(x, graph_data, middle_feat_cum)
                     prediction += pred
+            # print("我运行了")
+            # print("self.c0 + self.boost_rate * prediction\n", self.c0 + self.boost_rate * prediction)
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
     def forward_grad(self, x, graph_data):

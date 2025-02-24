@@ -144,11 +144,21 @@ class MLP_GNN(nn.Module):
         else:
             # 如果不是第一个弱学习器，则表格特征与图特征融合后 特征维度就是 原融合后维度 + 倒数第二层的输出维度
             combined_dim = args.combined_dim + args.dim_hidden2
-        print("stage:", stage, "  combined_dim:", combined_dim)
+        # print("stage:", stage, "  combined_dim:", combined_dim)
         model = MLP_GNN(args.table_dim_in, args.table_dim_hidden, args.gnn_input_dim, args.out_dim, args.gnn_hidden,
                         combined_dim,
                         args.dim_hidden1,
                         args.dim_hidden2, args.sparse)
+
+        # 新增：使用固定种子的权重初始化
+        def init_weights(m):
+            if isinstance(m, nn.Linear):
+                torch.manual_seed(41)  # 固定随机种子
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+        model.apply(init_weights)
         return model
 
 

@@ -46,7 +46,7 @@ parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
 parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)
 
 # Integer parameters with default values
-parser.add_argument('--num_nets', type=int, help='Number of networks', default=5)
+parser.add_argument('--num_nets', type=int, help='Number of networks', default=2)
 parser.add_argument('--batch_size', type=int, help='Batch size', default=64)
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
@@ -55,7 +55,7 @@ parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', 
 parser.add_argument('--data', type=str, help='Path to data')
 parser.add_argument('--tr', type=str, help='Path to training data')
 parser.add_argument('--te', type=str, help='Path to testing data')
-parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN0.8949.pth')
+parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN.pth')
 
 # Float parameter with default value
 
@@ -66,7 +66,7 @@ parser.add_argument('--normalization', type=lambda x: (str(x).lower() == 'true')
                     help='Enable normalization (true/false)')
 parser.add_argument('--cv', type=lambda x: (str(x).lower() == 'true'), default=True,
                     help='Enable cross-validation (true/false)')
-parser.add_argument('--cuda', action='store_true', help='Use CUDA for GPU acceleration')
+parser.add_argument('--cuda', action='store_true', help='Use CUDA for GPU acceleration', default=False)
 
 args = parser.parse_args()
 
@@ -137,7 +137,39 @@ def my_collate(batch):
     return table_features, graph_data, labels
 
 
+# 定义收集预测结果的函数
+def get_predictions(net_ensemble, loader):
+    net_ensemble.to_eval()  # 切换到评估模式
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for x, graph_data, y in loader:
+            # 移动数据到设备
+            if args.cuda:
+                x = x.to(device)
+                graph_data = graph_data.to(device)
+                y = y.to(device)
+
+            # 执行预测
+            _, preds = net_ensemble.forward(x, graph_data)
+
+            # 收集结果
+            all_preds.append(preds.cpu())
+            all_labels.append(y.cpu())
+
+    # 合并所有批次的预测结果
+    return torch.cat(all_preds).numpy(), torch.cat(all_labels).numpy()
+
+
+def worker_init_fn(worker_id):
+    np.random.seed(41 + worker_id)
+    random.seed(41 + worker_id)
+
+
 def set_seed(seed):
+    import os
+    os.environ['PYTHONHASHSEED'] = str(seed)  # 新增
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -145,11 +177,14 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
     torch.backends.cudnn.benchmark = False  # 禁用自动优化
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 if __name__ == "__main__":
     set_seed(41)  # 设置全局种子
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
+    device = torch.device('cuda' if args.cuda and torch.cuda.is_available() else 'cpu')
     print(f"训练设备：{device}")
     # 数据路径
     file_path = "../data/processed/MemTrOC-Dataset.csv"
@@ -186,9 +221,13 @@ if __name__ == "__main__":
     test_dataset = TableGraphDataset(X_test_t, smiles_test, y_test_t, create_graph_data_from_smiles)
 
     batch_size = args.batch_size
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                              collate_fn=my_collate, worker_init_fn=worker_init_fn)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                            collate_fn=my_collate, worker_init_fn=worker_init_fn)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                             collate_fn=my_collate, worker_init_fn=worker_init_fn)
 
     # # 打印 DataLoader 的第一个批次
     # for tables_batch, graphs_batch, labels_batch in train_loader:
@@ -215,6 +254,7 @@ if __name__ == "__main__":
     val_rmse = best_rmse
     best_stage = args.num_nets - 1
     c0 = y_train.mean()  # init_gbnn(train) # c0是训练集目标值的平均值
+    # c0 = torch.tensor(c0)
     net_ensemble = DynamicNetForMLPGNN(c0, args.boost_rate)  # 初始化集成网络，由多个弱学习器组成
     loss_f1 = nn.MSELoss()
     loss_models = torch.zeros((args.num_nets, 3))
@@ -223,7 +263,8 @@ if __name__ == "__main__":
         # 如果是第一个弱学习器，隐藏层维度和后面的弱学习器不一样
         model = MLP_GNN.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
         if args.cuda:
-            model
+            # model
+            model = model.to(device)
 
         optimizer = get_optim(model.parameters(), args.lr, args.L2)  # 获得优化器
         net_ensemble.to_train()  # Set the models in ensemble net to train mode
@@ -232,14 +273,28 @@ if __name__ == "__main__":
             for i, (x, graph_data, y) in enumerate(train_loader):
 
                 if args.cuda:
-                    x = x
-                    y = torch.as_tensor(y, dtype=torch.float32).view(-1, 1)
+                    # x = x
+                    # y = torch.as_tensor(y, dtype=torch.float32).view(-1, 1)
+                    x = x.to(device)
+                    graph_data = graph_data.to(device)
+                    y = y.to(device).view(-1, 1)
+                else:
+                    y = y.view(-1, 1)
+
                 middle_feat, out = net_ensemble.forward(x, graph_data)  # 使用多个弱学习器组合的学习器去得到预测值以及倒数第二层输出
                 out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
+                out = out.to(device)
+                # print("out shape:", out.shape)
+                # print("out:", out)
+                # print("y: ", y)
+                # out = out.view(-1, 1)
+                # print("after out.view(-1, 1) out shape:", out.shape)
+                # print("y shape:", y.shape)
                 grad_direction = -(out - y)  # 根据预测值得到残差
 
                 _, out = model(x, graph_data, middle_feat)  # 使用当前弱学习器去学习残差，x以及强学习器的倒数第二层作为输入
-                out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
+                # out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
+                out = out.view(-1, 1)
                 loss = loss_f1(net_ensemble.boost_rate * out, grad_direction)  # T
 
                 model.zero_grad()
@@ -264,8 +319,12 @@ if __name__ == "__main__":
             for _ in range(args.correct_epoch):
                 stage_loss = []
                 for i, (x, graph_data, y) in enumerate(train_loader):
+                    x = x.to(device)
+                    graph_data = graph_data.to(device)
+                    y = y.to(device).view(-1, 1)
                     if args.cuda:
-                        x, y = x, y.view(-1, 1)
+                        # x, y = x, y.view(-1, 1)
+                        x, y = x.to(device), y.to(device)
                     _, out = net_ensemble.forward_grad(x, graph_data)
                     out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
 
@@ -286,6 +345,9 @@ if __name__ == "__main__":
             f'Loss: {sl: .5f}')
 
         net_ensemble.to_file(args.out_f)
+        if args.cuda:
+            # net_ensemble = net_ensemble.to(device)
+            net_ensemble = net_ensemble.to_cuda()
         net_ensemble = DynamicNetForMLPGNN.from_file(args.out_f, lambda stage: MLP_GNN.get_model(stage, args))
 
         if args.cuda:
@@ -315,15 +377,26 @@ if __name__ == "__main__":
     print("best_stage:", best_stage)
     net_ensemble = DynamicNetForMLPGNN.from_file(args.out_f, lambda best_stage: MLP_GNN.get_model(best_stage, args))
 
-    _, prediction_train = net_ensemble.forward(X_train_t)
-    _, prediction_val = net_ensemble.forward(X_val_t)
-    _, prediction_test = net_ensemble.forward(X_test_t)
+    # 获取所有预测结果
+    train_pred, train_true = get_predictions(net_ensemble, train_loader)
+    val_pred, val_true = get_predictions(net_ensemble, val_loader)
+    test_pred, test_true = get_predictions(net_ensemble, test_loader)
+
+    prediction_train = train_pred
+    prediction_val = val_pred
+    prediction_test = test_pred
+    y_train = train_true
+    y_val = val_true
+    y_test = test_true
+    # _, prediction_train = net_ensemble.forward(X_train_t)
+    # _, prediction_val = net_ensemble.forward(X_val_t)
+    # _, prediction_test = net_ensemble.forward(X_test_t)
 
     from sklearn.metrics import r2_score
 
-    R2_train = r2_score(y_train, prediction_train.detach().cpu().numpy())
-    R2_val = r2_score(y_val, prediction_val.detach().cpu().numpy())
-    R2_test = r2_score(y_test, prediction_test.detach().cpu().numpy())
+    R2_train = r2_score(y_train, prediction_train)
+    R2_val = r2_score(y_val, prediction_val)
+    R2_test = r2_score(y_test, prediction_test)
 
     # R2_train = 1 - torch.mean((y_train - prediction_train) ** 2) / torch.mean(
     #     (y_train - torch.mean(y_train)) ** 2)
@@ -335,17 +408,17 @@ if __name__ == "__main__":
     print(f'train: R2：{R2_train}\n')
     print(f'val: R2：{R2_val}\n')
     print(f'test: R2：{R2_test}\n')
-    print(f'train: RMSE：{np.sqrt(mean_squared_error(y_train, prediction_train.detach().numpy()))}\n')
-    print(f'val: RMSE：{np.sqrt(mean_squared_error(y_val, prediction_val.detach().numpy()))}\n')
-    print(f'test: RMSE：{np.sqrt(mean_squared_error(y_test, prediction_test.detach().numpy()))}\n')
+    print(f'train: RMSE：{np.sqrt(mean_squared_error(y_train, prediction_train))}\n')
+    print(f'val: RMSE：{np.sqrt(mean_squared_error(y_val, prediction_val))}\n')
+    print(f'test: RMSE：{np.sqrt(mean_squared_error(y_test, prediction_test))}\n')
 
     # Save the trained model (optional)
     # torch.save(trained_model.state_dict(), 'checkpoint/1DGBCNN_model.pth')
 
     # 计算训练集、验证集和测试集上的MAE
-    mae_train = mean_absolute_error(y_train, prediction_train.detach().numpy())
-    mae_val = mean_absolute_error(y_val, prediction_val.detach().numpy())
-    mae_test = mean_absolute_error(y_test, prediction_test.detach().numpy())
+    mae_train = mean_absolute_error(y_train, prediction_train)
+    mae_val = mean_absolute_error(y_val, prediction_val)
+    mae_test = mean_absolute_error(y_test, prediction_test)
 
     # # 计算训练集、验证集和测试集上的MAPE
     # mape_train = mean_absolute_percentage_error(y_train.numpy(), prediction_train.detach().numpy())
