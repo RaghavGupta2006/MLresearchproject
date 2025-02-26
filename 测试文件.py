@@ -1,44 +1,50 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-from dataset.dataset import TableGraphDataset
-from src.utils.smiles2graph import create_graph_data_from_smiles
 import torch
-
-# 数据路径
-file_path = "./data/processed/MemTrOC-Dataset.csv"
-data = pd.read_csv(file_path)
-data = data.head(10)
-# 提取特征和标签
-X = data.iloc[:, 4:23].values  # 特征（19维）
-y = data.iloc[:, 23].values  # 标签
-
-smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
-
-# 先划分数据集再进行归一化（关键修改！）
-X_train, X_test, y_train, y_test, smiles_train, smiles_test = train_test_split(X, y, smiles_list, test_size=0.1, random_state=41)
-X_train, X_val, y_train, y_val, smiles_train, smiles_val = train_test_split(X_train, y_train, smiles_train, test_size=0.2 / 0.9, random_state=41)
-# 创建数据集
-train_dataset = TableGraphDataset(X_train, smiles_train, y_train, create_graph_data_from_smiles)
-val_dataset = TableGraphDataset(X_val, smiles_val, y_val, create_graph_data_from_smiles)
-test_dataset = TableGraphDataset(X_test, smiles_test, y_test, create_graph_data_from_smiles)
-
-# 打印数据集的大小
-print(f"训练集大小：{len(train_dataset)}")
-
-torch.set_printoptions(threshold=torch.inf)
-# 查看单个样本
-for i in range(5):  # 例如，查看前5个样本
-    table, graph_data, label = train_dataset[i]
-    print(f"Sample {i+1}:")
-    print("  Table:", table)
-    print("--------------------------------------------")
-    print("  Graph data:", graph_data)
-    print("graph_data.x:", graph_data.x)
-    print("graph_data.edge_index:", graph_data.edge_index)
-    print("graph_data.y:", graph_data.y)
-    print("--------------------------------------------")
-    print("  Label:", label)
-    print("\n---\n")
+import torch.nn as nn
+import torch.nn.functional as F
 
 
+class SelfAttnFusion(nn.Module):
+    def __init__(self, d_model=128, nhead=8):
+        super().__init__()
+        self.d_model = d_model
+        self.nhead = nhead
+
+        # 自注意力层
+        self.self_attn = nn.MultiheadAttention(d_model, nhead)
+
+        # 可选的层归一化和前馈层
+        self.norm = nn.LayerNorm(d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 2),
+            nn.ReLU(),
+            nn.Linear(d_model * 2, d_model)
+        )
+
+    def forward(self, table_feat, graph_feat):
+        # 输入形状: table_feat [64, 128], graph_feat [64, 128]
+
+        # 将特征拼接为序列 [2, 64, 128]
+        combined = torch.stack([table_feat, graph_feat], dim=0)
+
+        # 自注意力计算 (自动处理batch维度)
+        attn_output, _ = self.self_attn(combined, combined, combined)
+
+        # 残差连接 + 层归一化
+        combined = self.norm(combined + attn_output)
+
+        # 前馈网络 (作用于每个位置)
+        output = self.ffn(combined)  # [2, 64, 128]
+
+        # 合并策略：取平均 (也可改为其他方式)
+        fused_output = torch.mean(output, dim=0)  # [64, 128]
+
+        return fused_output
+
+
+# 使用示例
+if __name__ == "__main__":
+    model = SelfAttnFusion(d_model=128, nhead=8)
+    table_feat = torch.randn(64, 128)
+    graph_feat = torch.randn(64, 128)
+    output = model(table_feat, graph_feat)
+    print(output.shape)  # 输出: torch.Size([64, 128])

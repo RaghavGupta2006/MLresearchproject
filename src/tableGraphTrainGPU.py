@@ -46,8 +46,8 @@ parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
 parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)
 
 # Integer parameters with default values
-parser.add_argument('--num_nets', type=int, help='Number of networks', default=2)
-parser.add_argument('--batch_size', type=int, help='Batch size', default=64)
+parser.add_argument('--num_nets', type=int, help='Number of networks', default=3)
+parser.add_argument('--batch_size', type=int, help='Batch size', default=256)
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
 
@@ -55,7 +55,7 @@ parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', 
 parser.add_argument('--data', type=str, help='Path to data')
 parser.add_argument('--tr', type=str, help='Path to training data')
 parser.add_argument('--te', type=str, help='Path to testing data')
-parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN.pth')
+parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN_0225.pth')
 
 # Float parameter with default value
 
@@ -177,7 +177,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
     torch.backends.cudnn.benchmark = False  # 禁用自动优化
-    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+    # os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 if __name__ == "__main__":
@@ -408,6 +408,10 @@ if __name__ == "__main__":
     print(f'train: R2：{R2_train}\n')
     print(f'val: R2：{R2_val}\n')
     print(f'test: R2：{R2_test}\n')
+
+    rmse_train = np.sqrt(mean_squared_error(y_train, prediction_train))
+    rmse_val = np.sqrt(mean_squared_error(y_val, prediction_val))
+    rmse_test = np.sqrt(mean_squared_error(y_test, prediction_test))
     print(f'train: RMSE：{np.sqrt(mean_squared_error(y_train, prediction_train))}\n')
     print(f'val: RMSE：{np.sqrt(mean_squared_error(y_val, prediction_val))}\n')
     print(f'test: RMSE：{np.sqrt(mean_squared_error(y_test, prediction_test))}\n')
@@ -431,3 +435,39 @@ if __name__ == "__main__":
     # print(f'train: MAPE：{mape_train}\n')
     # print(f'val: MAPE：{mape_val}\n')
     # print(f'test: MAPE：{mape_test}\n')
+
+    # 保存到日志文件
+    argsDict = args.__dict__
+    # 将结果和超参数保存到日志文件
+    log_path = '../checkpoint/log.txt'
+
+    with open(log_path, 'a', encoding='utf-8') as f:  # 使用追加模式，并指定编码为utf-8
+        # 添加文件顶部的分割线
+        f.write("\n" + "=" * 60 + "\n")
+        f.write("{" + "训练结果记录".center(58) + "}\n")
+        f.write("=" * 60 + "\n\n")
+
+        # 保存训练、验证、测试集的评价指标
+        f.write("## 模型评估指标\n")
+        f.write("-" * 60 + "\n")
+        f.write("|       指标       |  训练集  |  验证集  |  测试集  |\n")
+        f.write("-" * 60 + "\n")
+        f.write(f"|     R² 值     | {R2_train:.4f}    | {R2_val:.4f}    | {R2_test:.4f}    |\n")
+        f.write(f"|     RMSE     | {rmse_train:.4f}    | {rmse_val:.4f}    | {rmse_test:.4f}    |\n")
+        f.write(f"|     MAE      | {mae_train:.4f}    | {mae_val:.4f}    | {mae_test:.4f}    |\n")
+        f.write("-" * 60 + "\n\n")
+
+        # 保存超参数
+        f.write("## 超参数设置\n")
+        f.write("-" * 60 + "\n")
+        f.write("名称 | 值\n")
+        f.write("-" * 60 + "\n")
+        for eachArg, value in argsDict.items():
+            f.write(f"{eachArg.ljust(20)} | {str(value).ljust(40)}\n")
+        f.write("-" * 60 + "\n\n")
+
+        # 文件底部的分割线
+        f.write("=" * 60 + "\n\n")
+
+
+
