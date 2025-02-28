@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 from typing import Tuple, Any
 
 
+# 用于创建 表格数据 + 分子图数据的 Dataset
 class TableGraphDataset(Dataset):
     def __init__(self, tables, smiles, labels, create_graph_data_from_smiles):
         """

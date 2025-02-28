@@ -11,6 +11,11 @@ class ForwardType(Enum):
     GRADIENT = 3
 
 
+"""
+DynamicNet 用于 仅表格数据  训练
+"""
+
+
 class DynamicNet(object):
     def __init__(self, c0, lr):
         self.models = []
@@ -76,7 +81,7 @@ class DynamicNet(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)# d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
         net = DynamicNet(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
@@ -89,6 +94,12 @@ class DynamicNet(object):
         models = [m.state_dict() for m in self.models]
         d = {'models': models, 'c0': self.c0, 'lr': self.lr, 'boost_rate': self.boost_rate}
         torch.save(d, path)
+
+
+"""
+DynamicNetForMLPGNN 用于 表格数据 + 分子图数据 训练
+
+"""
 
 
 class DynamicNetForMLPGNN(object):
@@ -158,7 +169,7 @@ class DynamicNetForMLPGNN(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)# d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
         net = DynamicNetForMLPGNN(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):

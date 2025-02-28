@@ -1,8 +1,9 @@
-#!/usr/bin/env python
+from dataset.dataset import TableGraphDataset
+from src.utils.smiles2graph import create_graph_data_from_smiles
+from torch_geometric.data import Batch
 import argparse
 import time
-
-from models.weaklearner import MLP_2HL, MLP_3HL
+from models.weaklearner import MLP_2HL, MLP_Maccs
 from models.ensemblemodel import DynamicNet
 from torch.optim import SGD, Adam
 
@@ -10,29 +11,33 @@ import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 from torch.utils.data import TensorDataset, DataLoader
+from rdkit import Chem
+from rdkit.Chem import MACCSkeys
 import random
+
 """
-用于 仅表格数据  训练
+用于 表格数据 + MACCS 分子指纹数据 训练
 
 """
 parser = argparse.ArgumentParser()
 
 # Integer parameters with no default value and required flag
-parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19)  # 输入特征维度
-parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=128)  # 弱学习器隐藏层维度
+parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19 + 167)  # 输入特征维度
+parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=256)  # 弱学习器隐藏层维度
 
 # Float parameters with no default value and required flag
 parser.add_argument('--boost_rate', type=float, help='Boosting rate', default=1.0)
 parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
-parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)
+parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)  # 1.0e-2
 
 # Integer parameters with default values
 parser.add_argument('--num_nets', type=int, help='Number of networks', default=5)
-parser.add_argument('--batch_size', type=int, help='Batch size', default=64)
+parser.add_argument('--batch_size', type=int, help='Batch size', default=32)   # 32
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
 
@@ -40,7 +45,8 @@ parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', 
 parser.add_argument('--data', type=str, help='Path to data')
 parser.add_argument('--tr', type=str, help='Path to training data')
 parser.add_argument('--te', type=str, help='Path to testing data')
-parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowNN.pth')
+parser.add_argument('--out_f', type=str, help='Output file path',
+                    default='../checkpoint/best_GrowTableMACCS_0228.pth')
 
 # Float parameter with default value
 
@@ -51,7 +57,7 @@ parser.add_argument('--normalization', type=lambda x: (str(x).lower() == 'true')
                     help='Enable normalization (true/false)')
 parser.add_argument('--cv', type=lambda x: (str(x).lower() == 'true'), default=True,
                     help='Enable cross-validation (true/false)')
-parser.add_argument('--cuda', action='store_true', help='Use CUDA for GPU acceleration')
+parser.add_argument('--cuda', action='store_true', help='Use CUDA for GPU acceleration', default=False)
 
 args = parser.parse_args()
 
@@ -82,19 +88,6 @@ def root_mse(net_ensemble, loader):
     return np.sqrt(loss / total)
 
 
-def init_gbnn(train):
-    positive = negative = 0
-    for i in range(len(train)):
-        if train[i][1] > 0:
-            positive += 1
-        else:
-            negative += 1
-    blind_acc = max(positive, negative) / (positive + negative)
-    print(f'Blind accuracy: {blind_acc}')
-    # print(f'Blind Logloss: {blind_acc}')
-    return float(np.log(positive / negative))
-
-
 def mean_absolute_percentage_error(y_true, y_pred):
     """
     Calculate Mean Absolute Percentage Error.
@@ -108,7 +101,25 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 
+# 将SMILES转换为MACCS指纹（处理无效分子）
+def smiles_to_maccs(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        # 如果SMILES无效，返回全0向量
+        return np.zeros(167, dtype=np.float32)
+    fingerprints = MACCSkeys.GenMACCSKeys(mol)
+    # 将指纹转换为167维的0/1数组
+    return np.array([int(bit) for bit in fingerprints.ToBitString()], dtype=np.float32)
+
+
+def worker_init_fn(worker_id):
+    np.random.seed(41 + worker_id)
+    random.seed(41 + worker_id)
+
+
 def set_seed(seed):
+    import os
+    os.environ['PYTHONHASHSEED'] = str(seed)  # 新增
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -116,42 +127,49 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
     torch.backends.cudnn.benchmark = False  # 禁用自动优化
+    # os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 if __name__ == "__main__":
-
-    # -----------------------------------------------------
-    # train, test, val = get_data()
-    # N = len(train)
-    # print(args.data + ' training and test datasets are loaded!')
-    # train_loader = DataLoader(train, args.batch_size, shuffle=True, drop_last=False, num_workers=2)
-    # test_loader = DataLoader(test, args.batch_size, shuffle=False, drop_last=False, num_workers=2)
-    # if args.cv:
-    #     val_loader = DataLoader(val, args.batch_size, shuffle=True, drop_last=False, num_workers=2)
-    # -----------------------------------------------------
-
-    set_seed(41)  # 设置全局种子
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    seed = 41
+    set_seed(seed)  # 设置全局种子
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cpu')
+    device = torch.device('cuda' if args.cuda and torch.cuda.is_available() else 'cpu')
     print(f"训练设备：{device}")
-    # mix_seed(9204)
     # 数据路径
     file_path = "../data/processed/MemTrOC-Dataset.csv"
     data = pd.read_csv(file_path)
 
+    # data = data.head(10)
     # 提取特征和标签
     X = data.iloc[:, 4:23].values  # 特征（19维）
     y = data.iloc[:, 23].values  # 标签
 
-    # 先划分数据集再进行归一化（关键修改！）
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=41)
-    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2 / 0.9, random_state=41)
-    N = len(X_train)
+    smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
+
+    # 为所有SMILES生成MACCS特征
+    maccs_features = np.array([smiles_to_maccs(smiles) for smiles in smiles_list])
+
+    # 检查是否有无效SMILES
+    invalid_mask = (maccs_features.sum(axis=1) == 0)  # 全0表示无效
+    if invalid_mask.any():
+        print(f"警告：发现 {invalid_mask.sum()} 个无效SMILES，已自动填充全0指纹")
+    # 合并数值特征和MACCS指纹
+    X = np.hstack([X.astype(np.float32), maccs_features])  # 最终形状：(n_samples, 19+167)
+
+    print("X type:", type(X))
+    print("X shape:", X.shape)
+    print("X:", X)
+
+    # 先划分数据集再进行归一化
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=seed)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2 / 0.9, random_state=seed)
     # 只在训练集上拟合归一化器
     scaler_X = MinMaxScaler()
     X_train = scaler_X.fit_transform(X_train)
     X_val = scaler_X.transform(X_val)  # 使用训练集的scaler
     X_test = scaler_X.transform(X_test)  # 使用训练集的scaler
-
     # 转换为 PyTorch Tensor
     X_train_t = torch.tensor(X_train, dtype=torch.float32)
     X_val_t = torch.tensor(X_val, dtype=torch.float32)
@@ -161,7 +179,7 @@ if __name__ == "__main__":
     y_val_t = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
     y_test_t = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-    # 创建 TensorDataset
+    # 创建数据集
     train_dataset = TensorDataset(X_train_t, y_train_t)
     val_dataset = TensorDataset(X_val_t, y_val_t)
     test_dataset = TensorDataset(X_test_t, y_test_t)
@@ -171,7 +189,7 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
+    N = len(X_train)
     print(type(args.lr))
     print(type(args.boost_rate))
 
@@ -185,7 +203,7 @@ if __name__ == "__main__":
     for stage in range(args.num_nets):  # 几个弱学习器就几个循环
         t0 = time.time()
         # 如果是第一个弱学习器，隐藏层维度和后面的弱学习器不一样
-        model = MLP_2HL.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
+        model = MLP_Maccs.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
         if args.cuda:
             model
 
@@ -250,7 +268,7 @@ if __name__ == "__main__":
             f'Loss: {sl: .5f}')
 
         net_ensemble.to_file(args.out_f)
-        net_ensemble = DynamicNet.from_file(args.out_f, lambda stage: MLP_2HL.get_model(stage, args))
+        net_ensemble = DynamicNet.from_file(args.out_f, lambda stage: MLP_Maccs.get_model(stage, args))
 
         if args.cuda:
             net_ensemble.to_cuda()
@@ -277,7 +295,7 @@ if __name__ == "__main__":
     np.savez(fname, rmse=loss_models, params=args)
 
     print("best_stage:", best_stage)
-    net_ensemble = DynamicNet.from_file(args.out_f, lambda best_stage: MLP_2HL.get_model(best_stage, args))
+    net_ensemble = DynamicNet.from_file(args.out_f, lambda best_stage: MLP_Maccs.get_model(best_stage, args))
 
     _, prediction_train = net_ensemble.forward(X_train_t)
     _, prediction_val = net_ensemble.forward(X_val_t)

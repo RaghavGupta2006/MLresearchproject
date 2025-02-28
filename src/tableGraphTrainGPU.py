@@ -19,11 +19,8 @@ from torch.utils.data import TensorDataset, DataLoader
 import random
 
 """
-用于 表格数据 + 图数据 训练
-table_dim_in, table_dim_hidden, gnn_input_dim, out_dim, gnn_hidden,
-                 combined_dim,
-                 dim_hidden1,
-                 dim_hidden2
+用于 表格数据 + 分子图数据 训练
+
 """
 parser = argparse.ArgumentParser()
 
@@ -196,7 +193,7 @@ if __name__ == "__main__":
 
     smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
 
-    # 先划分数据集再进行归一化（关键修改！）
+    # 先划分数据集再进行归一化
     X_train, X_test, y_train, y_test, smiles_train, smiles_test = train_test_split(X, y, smiles_list, test_size=0.1,
                                                                                    random_state=41)
     X_train, X_val, y_train, y_val, smiles_train, smiles_val = train_test_split(X_train, y_train, smiles_train,

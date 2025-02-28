@@ -6,6 +6,7 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 import math
 
 
+# 用在GrowNN 中
 class MLP_2HL(nn.Module):
     def __init__(self, dim_in, dim_hidden1, dim_hidden2, sparse=True, bn=True):
         super(MLP_2HL, self).__init__()
@@ -23,7 +24,7 @@ class MLP_2HL(nn.Module):
         if lower_f is not None:
             x = torch.cat([x, lower_f], dim=1)
             x = self.bn2(x)
-        # print(x.shape)
+        # print("MLP_2HL,x.shape", x.shape)
         out = self.lrelu(self.in_layer(x))
         out = self.dropout_layer(out)
         out = self.bn(out)
@@ -37,6 +38,41 @@ class MLP_2HL(nn.Module):
         else:
             dim_in = args.feat_d + args.hidden_d
         model = MLP_2HL(dim_in, args.hidden_d, args.hidden_d, args.sparse)
+        return model
+
+
+# 用在 tableMACCSkeysTrain 中
+class MLP_Maccs(nn.Module):
+    def __init__(self, dim_in, dim_hidden1, dim_hidden2, sparse=True, bn=True):
+        super(MLP_Maccs, self).__init__()
+        self.in_layer = SpLinear(dim_in, dim_hidden1) if sparse else nn.Linear(dim_in, dim_hidden1)
+        self.dropout_layer = nn.Dropout(0.5)
+        self.lrelu = nn.LeakyReLU(0.1)
+        self.relu = nn.ReLU()
+        self.hidden_layer = nn.Linear(dim_hidden1, dim_hidden2)
+        self.out_layer = nn.Linear(dim_hidden2, 1)
+        self.bn = nn.BatchNorm1d(dim_hidden1)
+        self.bn2 = nn.BatchNorm1d(dim_in)
+
+    def forward(self, x, lower_f):
+        # 第一个弱学习器输入不是 当前输入 + 上一个学习器倒数第二层
+        if lower_f is not None:
+            x = torch.cat([x, lower_f], dim=1)
+            x = self.bn2(x)
+        # print("MLP_Maccs,x.shape", x.shape)
+        out = self.lrelu(self.in_layer(x))
+        out = self.dropout_layer(out)
+        out = self.bn(out)
+        out = self.hidden_layer(out)
+        return out, self.out_layer(self.relu(out)).squeeze()
+
+    @classmethod
+    def get_model(cls, stage, args):
+        if stage == 0:
+            dim_in = args.feat_d
+        else:
+            dim_in = args.feat_d + args.hidden_d
+        model = MLP_Maccs(dim_in, args.hidden_d, args.hidden_d, args.sparse)
         return model
 
 
