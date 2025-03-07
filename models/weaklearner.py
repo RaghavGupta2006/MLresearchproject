@@ -115,6 +115,7 @@ class SelfAttentionFusion(nn.Module):
         return fused_output
 
 
+# 用于提取 表格数据 特征
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden1, dim_hidden2, sparse=True, bn=True):
         super(MLP, self).__init__()
@@ -223,6 +224,95 @@ class MLP_GNN(nn.Module):
                         combined_dim,
                         args.dim_hidden1,
                         args.dim_hidden2, args.sparse)
+
+        # 新增：使用固定种子的权重初始化
+        def init_weights(m):
+            if isinstance(m, nn.Linear):
+                torch.manual_seed(41)  # 固定随机种子
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+        model.apply(init_weights)
+        return model
+
+
+import torchvision.models as models
+
+
+# 用于 表格数据 与 分子图像 数据
+class MLP_ResNet(nn.Module):
+    def __init__(self, table_dim_in, table_dim_hidden, out_dim,
+                 combined_dim,
+                 dim_hidden1,
+                 dim_hidden2,
+                 sparse=True,
+                 bn=True):
+        super(MLP_ResNet, self).__init__()
+        # 表格数据处理分支（保持原有结构）
+        self.table_net = MLP(table_dim_in, table_dim_hidden, out_dim)
+
+        # 分子图像 Resnet神经网络分支
+        self.img_encoder = models.resnet50(pretrained=False)
+        self.img_encoder.load_state_dict(torch.load('./resnetpth/resnet50-19c8e357.pth'), strict=False)
+        # 替换最后一层全连接层以匹配特征维度
+        self.img_encoder.fc = nn.Linear(self.img_encoder.fc.in_features, out_dim)
+        self.bn2 = None
+        # self.bn2 = nn.BatchNorm1d(combined_dim)
+        # 特征融合层
+        # 加权融合参数（可学习的权重）
+        self.alpha = nn.Parameter(torch.tensor(0.5))  # 初始权重为0.5
+        # 下面是特征融合之后走的网络
+        self.in_layer = SpLinear(combined_dim, dim_hidden1) if sparse else nn.Linear(combined_dim, dim_hidden1)
+        self.dropout_layer = nn.Dropout(0.2)
+        self.lrelu = nn.LeakyReLU(0.1)
+        self.relu = nn.ReLU()
+        self.hidden_layer = nn.Linear(dim_hidden1, dim_hidden2)
+        self.out_layer = nn.Linear(dim_hidden2, 1)
+        self.bn = nn.BatchNorm1d(dim_hidden1)
+
+    def forward(self, table_data, image_data, lower_f):
+        # table_data 是表格数据， image_data是分子图像数据
+        # 处理表格数据
+        table_feat = self.table_net(table_data)
+        # 处理分子图像数据
+        image_feat = self.img_encoder(image_data)
+
+        # 特征融合
+        # combined = torch.cat([table_feat, graph_feat], dim=1)
+        # combined = (table_feat + graph_feat) / 2
+        combined = self.alpha * table_feat + (1 - self.alpha) * image_feat
+        x = combined
+        # print("特征融合前table_feat维度:", table_feat.shape)
+        # print("特征融合前graph_feat维度:", graph_feat.shape)
+        # print("特征融合后维度:", x.shape)
+        # 如果不是第一个弱学习器
+        if lower_f is not None:
+            x = torch.cat([x, lower_f], dim=1)
+            # print("我打印了self.combined_net:", x.shape)
+            if self.bn2 is None:  # 延迟初始化
+                self.bn2 = nn.BatchNorm1d(x.shape[1])
+            x = self.bn2(x)
+
+        # print("self.combined_net:", x.shape)
+        out = self.lrelu(self.in_layer(x))
+        out = self.dropout_layer(out)
+        out = self.bn(out)
+        out = self.hidden_layer(out)
+        return out, self.out_layer(self.relu(out)).squeeze()
+
+    @classmethod
+    def get_model(cls, stage, args):
+        if stage == 0:
+            combined_dim = args.combined_dim
+        else:
+            # 如果不是第一个弱学习器，则表格特征与图特征融合后 特征维度就是 原融合后维度 + 倒数第二层的输出维度
+            combined_dim = args.combined_dim + args.dim_hidden2
+        # print("stage:", stage, "  combined_dim:", combined_dim)
+        model = MLP_ResNet(args.table_dim_in, args.table_dim_hidden, args.out_dim,
+                           combined_dim,
+                           args.dim_hidden1,
+                           args.dim_hidden2, args.sparse)
 
         # 新增：使用固定种子的权重初始化
         def init_weights(m):
