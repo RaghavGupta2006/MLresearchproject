@@ -258,7 +258,7 @@ class DynamicNetForMLPImage(object):
     @classmethod
     def from_file(cls, path, builder):
         d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
-        net = DynamicNetForMLPGNN(d['c0'], d['lr'])
+        net = DynamicNetForMLPImage(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
             submod = builder(stage)

@@ -253,12 +253,12 @@ class MLP_ResNet(nn.Module):
         self.table_net = MLP(table_dim_in, table_dim_hidden, out_dim)
 
         # 分子图像 Resnet神经网络分支
-        self.img_encoder = models.resnet50(pretrained=False)
-        self.img_encoder.load_state_dict(torch.load('./resnetpth/resnet50-19c8e357.pth'), strict=False)
+        self.img_encoder = models.resnet18(pretrained=False)
+        self.img_encoder.load_state_dict(torch.load('./resnetpth/resnet18-5c106cde.pth'), strict=False)
         # 替换最后一层全连接层以匹配特征维度
         self.img_encoder.fc = nn.Linear(self.img_encoder.fc.in_features, out_dim)
-        self.bn2 = None
-        # self.bn2 = nn.BatchNorm1d(combined_dim)
+        # self.bn2 = None
+        self.bn2 = nn.BatchNorm1d(combined_dim)
         # 特征融合层
         # 加权融合参数（可学习的权重）
         self.alpha = nn.Parameter(torch.tensor(0.5))  # 初始权重为0.5
@@ -290,9 +290,9 @@ class MLP_ResNet(nn.Module):
         if lower_f is not None:
             x = torch.cat([x, lower_f], dim=1)
             # print("我打印了self.combined_net:", x.shape)
-            if self.bn2 is None:  # 延迟初始化
-                self.bn2 = nn.BatchNorm1d(x.shape[1])
-            x = self.bn2(x)
+            # if self.bn2 is None:  # 延迟初始化
+            #     self.bn2 = nn.BatchNorm1d(x.shape[1]).to(x.device)
+            x = self.bn2(x).to(x.device)
 
         # print("self.combined_net:", x.shape)
         out = self.lrelu(self.in_layer(x))

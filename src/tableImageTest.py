@@ -21,7 +21,7 @@ from rdkit.Chem import MACCSkeys
 import random
 
 """
-用于 表格数据 + 分子图像数据 训练
+用于 表格数据 + 分子图像数据 测试 获取评价指标
 运行特慢
 """
 parser = argparse.ArgumentParser()
@@ -43,7 +43,7 @@ parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
 parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)  # 1.0e-2
 
 # Integer parameters with default values
-parser.add_argument('--num_nets', type=int, help='Number of networks', default=3)
+parser.add_argument('--num_nets', type=int, help='Number of networks', default=5)
 parser.add_argument('--batch_size', type=int, help='Batch size', default=32)   # 32
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
@@ -200,132 +200,9 @@ if __name__ == "__main__":
     print(type(args.lr))
     print(type(args.boost_rate))
 
-    best_rmse = pow(10, 6)
-    val_rmse = best_rmse
-    best_stage = args.num_nets - 1
-    c0 = y_train.mean()  # init_gbnn(train) # c0是训练集目标值的平均值
-    net_ensemble = DynamicNetForMLPImage(c0, args.boost_rate)  # 初始化集成网络，由多个弱学习器组成
-    loss_f1 = nn.MSELoss()
-    loss_models = torch.zeros((args.num_nets, 3))
-    for stage in range(args.num_nets):  # 几个弱学习器就几个循环
-        t0 = time.time()
-        # 如果是第一个弱学习器，隐藏层维度和后面的弱学习器不一样
-        model = MLP_ResNet.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
-        if args.cuda:
-            # model
-            model = model.to(device)
 
-        optimizer = get_optim(model.parameters(), args.lr, args.L2)  # 获得优化器
-        net_ensemble.to_train()  # Set the models in ensemble net to train mode
-        stage_mdlloss = []  # 保存每一次循环的损失。每多一次循环就多一个弱学习器。
-        for epoch in range(args.epochs_per_stage):  # 在每一次循环中训练当前的弱学习器，弱学习器去学习残差
-            for i, (x, image_data, y) in enumerate(train_loader):
-
-                if args.cuda:
-                    # x = x
-                    # y = torch.as_tensor(y, dtype=torch.float32).view(-1, 1)
-                    x = x.to(device)
-                    image_data = image_data.to(device)
-                    y = y.to(device).view(-1, 1)
-                else:
-                    y = y.view(-1, 1)
-
-                middle_feat, out = net_ensemble.forward(x, image_data)  # 使用多个弱学习器组合的学习器去得到预测值以及倒数第二层输出
-                out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
-                out = out.to(device)
-                # print("out shape:", out.shape)
-                # print("out:", out)
-                # print("y: ", y)
-                # out = out.view(-1, 1)
-                # print("after out.view(-1, 1) out shape:", out.shape)
-                # print("y shape:", y.shape)
-                grad_direction = -(out - y)  # 根据预测值得到残差
-
-                _, out = model(x, image_data, middle_feat)  # 使用当前弱学习器去学习残差，x以及强学习器的倒数第二层作为输入
-                # out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
-                out = out.view(-1, 1)
-                loss = loss_f1(net_ensemble.boost_rate * out, grad_direction)  # T
-
-                model.zero_grad()
-                loss.backward()
-                optimizer.step()  # 对当前弱学习器进行参数更新
-                stage_mdlloss.append(loss.item() * len(y))
-
-        net_ensemble.add(model)  # 当前弱学习器训练好后，加入集成模型中
-        sml = np.sqrt(np.sum(stage_mdlloss) / N)  # 平均每个训练样本的损失
-
-        # 上述训练完成后得到一个有多个弱学习器组成的强学习器，下面再使用训练数据对该强学习器进行微调，学习率降低
-        lr_scaler = 3
-        # fully-corrective step
-        stage_loss = []
-        if stage > 0:
-            # Adjusting corrective step learning rate
-            if stage % 15 == 0:
-                # lr_scaler *= 2
-                args.lr /= 2
-                args.L2 /= 2
-            optimizer = get_optim(net_ensemble.parameters(), args.lr / lr_scaler, args.L2)
-            for _ in range(args.correct_epoch):
-                stage_loss = []
-                for i, (x, image_data, y) in enumerate(train_loader):
-                    x = x.to(device)
-                    image_data = image_data.to(device)
-                    y = y.to(device).view(-1, 1)
-                    if args.cuda:
-                        # x, y = x, y.view(-1, 1)
-                        x, y = x.to(device), y.to(device)
-                    _, out = net_ensemble.forward_grad(x, image_data)
-                    out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
-
-                    loss = loss_f1(out, y)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-                    stage_loss.append(loss.item() * len(y))
-        # print(net_ensemble.boost_rate)
-        # store model
-        elapsed_tr = time.time() - t0
-        sl = 0
-        if stage_loss != []:
-            sl = np.sqrt(np.sum(stage_loss) / N)
-
-        print(
-            f'Stage - {stage}, training time: {elapsed_tr: .1f} sec, model RMSE loss: {sml: .5f}, Ensemble Net RMSE '
-            f'Loss: {sl: .5f}')
-
-        net_ensemble.to_file(args.out_f)
-        if args.cuda:
-            # net_ensemble = net_ensemble.to(device)
-            net_ensemble = net_ensemble.to_cuda()
-        net_ensemble = DynamicNetForMLPImage.from_file(args.out_f, lambda stage: MLP_ResNet.get_model(stage, args))
-
-        if args.cuda:
-            net_ensemble.to_cuda()
-        net_ensemble.to_eval()  # Set the models in ensemble net to eval mode
-
-        # Train
-        tr_rmse = root_mse(net_ensemble, train_loader)
-        if args.cv:
-            val_rmse = root_mse(net_ensemble, val_loader)
-            if val_rmse < best_rmse:
-                best_rmse = val_rmse
-                best_stage = stage
-
-        te_rmse = root_mse(net_ensemble, test_loader)
-
-        print(f'Stage: {stage}  RMSE@Train: {tr_rmse:.5f}, RMSE@Val: {val_rmse:.5f}, RMSE@Test: {te_rmse:.5f}')
-
-        loss_models[stage, 0], loss_models[stage, 1] = tr_rmse, te_rmse
-
-    tr_rmse, te_rmse = loss_models[best_stage, 0], loss_models[best_stage, 1]
-    print(f'Best validation stage: {best_stage}  RMSE@Train: {tr_rmse:.5f}, final RMSE@Test: {te_rmse:.5f}')
-    loss_models = loss_models.detach().cpu().numpy()
-    fname = './results/' + 'rmse'
-    np.savez(fname, rmse=loss_models, params=args)
-
-    print("best_stage:", best_stage)
     net_ensemble = DynamicNetForMLPImage.from_file(args.out_f, lambda best_stage: MLP_ResNet.get_model(best_stage, args))
-
+    net_ensemble.to_cuda()
     # 获取所有预测结果
     train_pred, train_true = get_predictions(net_ensemble, train_loader)
     val_pred, val_true = get_predictions(net_ensemble, val_loader)

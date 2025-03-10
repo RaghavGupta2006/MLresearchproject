@@ -47,9 +47,9 @@ class TabularImageDataset(Dataset):
             y (numpy.ndarray): 标签数组
             image_transform (torchvision.transforms): 图像预处理变换
         """
-        self.X = torch.tensor(X, dtype=torch.float32)
+        self.X = X.clone().detach().to(torch.float32)
         self.smiles_list = smiles_list
-        self.y = torch.tensor(y, dtype=torch.float32)
+        self.y = y.clone().detach().to(torch.float32)
 
         # 默认图像转换：调整尺寸、转为张量、归一化
         self.image_transform = image_transform or transforms.Compose([
