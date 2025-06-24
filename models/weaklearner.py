@@ -326,6 +326,101 @@ class MLP_ResNet(nn.Module):
         return model
 
 
+# 用于 表格数据 与 分子图 与 分子图像 数据
+class MLP_GNNResNet(nn.Module):
+    def __init__(self, table_dim_in, table_dim_hidden, gnn_input_dim,
+                 out_dim, gnn_hidden, combined_dim, dim_hidden1, dim_hidden2,
+                 sparse=True, bn=True):
+        super(MLP_GNNResNet, self).__init__()
+
+        # 表格数据处理分支
+        self.table_net = MLP(table_dim_in, table_dim_hidden, out_dim)
+
+        # 分子图数据处理分支
+        self.gnn = SimpleGNN(
+            input_dim=gnn_input_dim,
+            hidden_dim=gnn_hidden,
+            output_dim=out_dim
+        )
+
+        # 分子图像处理分支
+        self.img_encoder = models.resnet18(pretrained=False)
+        self.img_encoder.load_state_dict(
+            torch.load('./resnetpth/resnet18-5c106cde.pth'), strict=False
+        )
+        self.img_encoder.fc = nn.Linear(self.img_encoder.fc.in_features, out_dim)
+
+        # 特征融合参数（三分支加权融合）
+        self.alpha = nn.Parameter(torch.tensor(0.33))  # 表格权重
+        self.beta = nn.Parameter(torch.tensor(0.34))  # 分子图权重
+        self.gamma = nn.Parameter(torch.tensor(0.33))  # 分子图像权重
+
+        # 特征融合后处理网络
+        self.bn2 = nn.BatchNorm1d(combined_dim)
+        self.in_layer = SpLinear(combined_dim, dim_hidden1) if sparse else nn.Linear(combined_dim, dim_hidden1)
+        self.dropout_layer = nn.Dropout(0.2)
+        self.lrelu = nn.LeakyReLU(0.1)
+        self.relu = nn.ReLU()
+        self.hidden_layer = nn.Linear(dim_hidden1, dim_hidden2)
+        self.out_layer = nn.Linear(dim_hidden2, 1)
+        self.bn = nn.BatchNorm1d(dim_hidden1)
+
+    def forward(self, table_data, graph_data, image_data, lower_f):
+        # 处理三种数据类型
+        table_feat = self.table_net(table_data)
+        graph_feat = self.gnn(graph_data)
+        image_feat = self.img_encoder(image_data)
+
+        # 三模态加权融合（自动归一化权重）
+        total_weight = self.alpha + self.beta + self.gamma
+        combined = (
+                (self.alpha / total_weight) * table_feat +
+                (self.beta / total_weight) * graph_feat +
+                (self.gamma / total_weight) * image_feat
+        )
+
+        # 集成先前模型的特征
+        x = combined
+        if lower_f is not None:
+            x = torch.cat([x, lower_f], dim=1)
+            x = self.bn2(x)
+
+        # 后续处理网络
+        out = self.lrelu(self.in_layer(x))
+        out = self.dropout_layer(out)
+        out = self.bn(out)
+        out = self.hidden_layer(out)
+        return out, self.out_layer(self.relu(out)).squeeze()
+
+    @classmethod
+    def get_model(cls, stage, args):
+        # 计算融合维度（考虑先前模型的特征）
+        combined_dim = args.combined_dim + (args.dim_hidden2 if stage > 0 else 0)
+
+        model = MLP_GNNResNet(
+            table_dim_in=args.table_dim_in,
+            table_dim_hidden=args.table_dim_hidden,
+            gnn_input_dim=args.gnn_input_dim,
+            out_dim=args.out_dim,
+            gnn_hidden=args.gnn_hidden,
+            combined_dim=combined_dim,
+            dim_hidden1=args.dim_hidden1,
+            dim_hidden2=args.dim_hidden2,
+            sparse=args.sparse
+        )
+
+        # 权重初始化
+        def init_weights(m):
+            if isinstance(m, nn.Linear):
+                torch.manual_seed(41)
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+        model.apply(init_weights)
+        return model
+
+
 class MLP_3HL(nn.Module):
     def __init__(self, dim_in, dim_hidden1, dim_hidden2, sparse=False, bn=True):
         super(MLP_3HL, self).__init__()

@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from typing import Tuple, Any
+from typing import Tuple, Any, Callable, Optional
 from torchvision import transforms
 from rdkit import Chem
 from rdkit.Chem import Draw
@@ -79,3 +79,62 @@ class TabularImageDataset(Dataset):
         img = self.image_transform(img)  # 应用预处理变换
 
         return table_feature, img, label
+
+
+# 用于创建 表格数据 + 分子图 + 分子图像数据的 Dataset
+class TableGraphImageDataset(Dataset):
+    def __init__(
+            self,
+            tables,  # 表格特征张量
+            smiles_list,  # SMILES字符串列表
+            labels,  # 标签张量
+            create_graph_data_from_smiles,  # SMILES转图数据的函数
+            image_transform = None  # 图像预处理变换
+    ):
+        """
+        初始化同时包含表格、分子图和图像数据的数据集
+
+        参数:
+            tables : 表格特征张量 (num_samples x num_features)
+            smiles_list : SMILES字符串列表
+            labels : 标签张量 (num_samples x num_labels)
+            create_graph_data_from_smiles : 将SMILES转换为图数据的函数
+            image_transform : 图像预处理变换 (默认包含Resize, ToTensor, Normalize)
+        """
+        # 确保数据类型一致
+        self.tables = tables.clone().detach().to(torch.float32)
+        self.smiles_list = smiles_list
+        self.labels = labels.clone().detach().to(torch.float32)
+        self.create_graph_data = create_graph_data_from_smiles
+
+        # 设置默认图像预处理流程
+        self.image_transform = image_transform or transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+
+    def __len__(self) -> int:
+        return len(self.smiles_list)
+
+    def __getitem__(self, idx):
+        """返回表格特征、分子图数据、分子图像和标签"""
+        # 获取表格数据和标签
+        table = self.tables[idx]
+        smile = self.smiles_list[idx]
+        label = self.labels[idx]
+
+        # 生成分子图数据
+        graph_data = self.create_graph_data(str(smile), label)
+
+        # 生成分子图像
+        mol = Chem.MolFromSmiles(smile)
+        if mol is None:
+            raise ValueError(f"无效的SMILES: {smile}, 索引: {idx}")
+        img = Draw.MolToImage(mol, size=(224, 224))
+        img = self.image_transform(img)
+
+        return table, graph_data, img, label
