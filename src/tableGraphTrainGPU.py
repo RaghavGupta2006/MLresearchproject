@@ -43,8 +43,8 @@ parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
 parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)
 
 # Integer parameters with default values
-parser.add_argument('--num_nets', type=int, help='Number of networks', default=3)
-parser.add_argument('--batch_size', type=int, help='Batch size', default=256)
+parser.add_argument('--num_nets', type=int, help='Number of networks', default=8)
+parser.add_argument('--batch_size', type=int, help='Batch size', default=64)
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
 
@@ -52,7 +52,7 @@ parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', 
 parser.add_argument('--data', type=str, help='Path to data')
 parser.add_argument('--tr', type=str, help='Path to training data')
 parser.add_argument('--te', type=str, help='Path to testing data')
-parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN_0606.pth')
+parser.add_argument('--out_f', type=str, help='Output file path', default='../checkpoint/best_GrowTableGraphNN_0912.pth')
 
 # Float parameter with default value
 

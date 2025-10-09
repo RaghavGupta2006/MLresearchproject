@@ -42,12 +42,12 @@ parser.add_argument('--gnn_hidden', type=int, default=128)  # 用于提取图数
 
 # Float parameters with no default value and required flag
 parser.add_argument('--boost_rate', type=float, help='Boosting rate', default=1.0)
-parser.add_argument('--lr', type=float, help='Learning rate', default=0.001)
-parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=1.0e-2)  # 1.0e-2
+parser.add_argument('--lr', type=float, help='Learning rate', default=0.002)
+parser.add_argument('--L2', type=float, help='L2 regularization coefficient', default=2.0e-2)  # 1.0e-2
 
 # Integer parameters with default values
 parser.add_argument('--num_nets', type=int, help='Number of networks', default=5)
-parser.add_argument('--batch_size', type=int, help='Batch size', default=32)  # 32
+parser.add_argument('--batch_size', type=int, help='Batch size', default=64)  # 32
 parser.add_argument('--epochs_per_stage', type=int, help='Epochs per stage', default=100)
 parser.add_argument('--correct_epoch', type=int, help='Epoch to correct model', default=100)
 
@@ -97,6 +97,7 @@ def root_mse(net_ensemble, loader):
         loss += mean_squared_error(y, out) * len(y)
         total += len(y)
     return np.sqrt(loss / total)
+
 
 
 def mean_absolute_percentage_error(y_true, y_pred):
@@ -213,9 +214,16 @@ if __name__ == "__main__":
 
     # 创建 DataLoader
     batch_size = args.batch_size
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
+    num_workers = 4
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate,
+                              worker_init_fn=worker_init_fn, num_workers=num_workers)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate,
+                            worker_init_fn=worker_init_fn, num_workers=num_workers)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate,
+                             worker_init_fn=worker_init_fn, num_workers=num_workers)
+    # train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=my_collate)
+    # val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
+    # test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn=my_collate)
     N = len(X_train)
     print(type(args.lr))
     print(type(args.boost_rate))
@@ -347,6 +355,7 @@ if __name__ == "__main__":
 
     print("best_stage:", best_stage)
     net_ensemble = DynamicNetForMLPGNNImage.from_file(args.out_f,
+
                                                       lambda best_stage: MLP_GNNResNet.get_model(best_stage, args))
     if args.cuda:
         net_ensemble.to_cuda()

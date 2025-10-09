@@ -41,6 +41,22 @@ param_grid = {
 # Best parameters found:  {'colsample_bytree': 0.7, 'learning_rate': 0.1, 'max_depth': 7, 'n_estimators': 300,
 # 'subsample': 0.8} 5. 初始化模型
 model = XGBRegressor(random_state=42)
+# 训练集
+# R2: 0.9996
+# MAE: 0.3310
+# MSE: 0.3116
+# RMSE: 0.5582
+
+# 验证集
+# R2: 0.8776
+# MAE: 6.1307
+# MSE: 105.0044
+# RMSE: 10.2472
+# 测试集
+# R2: 0.8288
+# MAE: 7.2889
+# MSE: 133.2985
+# RMSE: 11.5455
 
 # 6. 使用 GridSearchCV 进行网格搜索和交叉验证
 grid_search = GridSearchCV(

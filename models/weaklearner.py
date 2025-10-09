@@ -333,6 +333,16 @@ class MLP_GNNResNet(nn.Module):
                  sparse=True, bn=True):
         super(MLP_GNNResNet, self).__init__()
 
+        attn_hidden = 32  # 适当增大容量
+        self.attn_layer = nn.Sequential(
+            nn.Linear(out_dim, attn_hidden * 2),
+            nn.ReLU(),
+            nn.Linear(attn_hidden * 2, attn_hidden),
+            nn.ReLU(),
+            nn.Linear(attn_hidden, 3),
+            nn.Softmax(dim=1)
+        )
+
         # 表格数据处理分支
         self.table_net = MLP(table_dim_in, table_dim_hidden, out_dim)
 
@@ -350,8 +360,25 @@ class MLP_GNNResNet(nn.Module):
         )
         self.img_encoder.fc = nn.Linear(self.img_encoder.fc.in_features, out_dim)
 
+        # 图像特征增强器
+        self.image_enhancer = ImageFeatureEnhancer(out_dim, out_dim * 2)
+        # 上下文注意力机制（表格+分子图）
+        self.context_attn = nn.Sequential(
+            nn.Linear(out_dim * 2, 16),
+            nn.ReLU(),
+            nn.Linear(16, 2),
+            nn.Softmax(dim=1)
+        )
+        # 三模态注意力机制
+        self.attn_layer = nn.Sequential(
+            nn.Linear(out_dim * 3, 32),
+            nn.ReLU(),
+            nn.Linear(32, 3),
+            nn.Softmax(dim=1)
+        )
+
         # 特征融合参数（三分支加权融合）
-        self.alpha = nn.Parameter(torch.tensor(0.33))  # 表格权重
+        self.alpha = nn.Parameter(torch.tensor(0.34))  # 表格权重
         self.beta = nn.Parameter(torch.tensor(0.34))  # 分子图权重
         self.gamma = nn.Parameter(torch.tensor(0.33))  # 分子图像权重
 
@@ -378,6 +405,28 @@ class MLP_GNNResNet(nn.Module):
                 (self.beta / total_weight) * graph_feat +
                 (self.gamma / total_weight) * image_feat
         )
+
+        # # 1. 先融合表格和分子图（主导特征）
+        # context_feats = torch.stack([table_feat, graph_feat], dim=1)
+        # context_weights = self.context_attn(torch.cat([table_feat, graph_feat], dim=1))
+        # context_fused = torch.sum(context_feats * context_weights.unsqueeze(2), dim=1)
+        #
+        # # 2. 使用上下文信息增强图像特征
+        # image_enhanced = self.image_enhancer(image_feat, context_fused)
+        #
+        # # 3. 三模态融合（包含增强后的图像特征）
+        # all_feats = torch.stack([
+        #     table_feat,
+        #     graph_feat,
+        #     image_enhanced
+        # ], dim=1)
+        #
+        # # 注意力权重
+        # attn_weights = self.attn_layer(
+        #     torch.cat([table_feat, graph_feat, image_enhanced], dim=1))
+        #
+        # # 加权融合
+        # combined = torch.sum(all_feats * attn_weights.unsqueeze(2), dim=1)
 
         # 集成先前模型的特征
         x = combined
@@ -421,6 +470,38 @@ class MLP_GNNResNet(nn.Module):
         return model
 
 
+class ImageFeatureEnhancer(nn.Module):
+    def __init__(self, in_dim, hidden_dim):
+        super().__init__()
+        self.enhancer = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, in_dim)  # 输出维度不变
+        )
+        self.gate = nn.Sequential(
+            nn.Linear(in_dim * 2, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, image_feat, context_feat):
+        """
+        image_feat: 原始图像特征 [batch, out_dim]
+        context_feat: 上下文特征（表格+分子图的融合）[batch, out_dim]
+        """
+        # 特征增强
+        enhanced = self.enhancer(image_feat)
+
+        # 门控机制控制增强程度
+        gate_input = torch.cat([image_feat, context_feat], dim=1)
+        gate_value = self.gate(gate_input)
+
+        # 残差连接 + 门控
+        return image_feat + gate_value * enhanced
 class MLP_3HL(nn.Module):
     def __init__(self, dim_in, dim_hidden1, dim_hidden2, sparse=False, bn=True):
         super(MLP_3HL, self).__init__()

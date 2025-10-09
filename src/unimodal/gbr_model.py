@@ -103,3 +103,26 @@ for dataset, metrics in results.items():
     print(f"RMSE: {metrics['RMSE']:.4f}")
     print(f"MAPE: {metrics['MAPE']:.4f}")
     print("\n")
+
+# Training Set Metrics:
+# R2: 0.9952
+# MAE: 1.3239
+# MSE: 3.4474
+# RMSE: 1.8567
+# MAPE: 2.8834
+#
+#
+# Validation Set Metrics:
+# R2: 0.8454
+# MAE: 6.9334
+# MSE: 132.6417
+# RMSE: 11.5170
+# MAPE: 21.7236
+#
+#
+# Test Set Metrics:
+# R2: 0.8077
+# MAE: 7.6759
+# MSE: 149.7084
+# RMSE: 12.2355
+# MAPE: 30.9075
