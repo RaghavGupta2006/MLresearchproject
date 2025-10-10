@@ -471,7 +471,8 @@ class MoleculeFeatureImportanceAnalyzer:
             # 显示分子图像
             ax1.imshow(img)
             ax1.axis('off')
-            ax1.set_title(f'Molecular Structure: {smiles}', fontsize=14, pad=15, fontweight='bold')
+            # 将标注添加到标题前面
+            ax1.set_title(f'(a) Molecular Structure: {smiles}', fontsize=14, pad=15, fontweight='bold')
 
             # 右侧子图：科研风格的原子重要性条形图
             # 获取原子符号和索引
@@ -527,7 +528,8 @@ class MoleculeFeatureImportanceAnalyzer:
             ax2.set_yticklabels(atom_symbols_with_index, fontsize=10)
             ax2.set_xlabel('Atom Importance Score', fontsize=12, fontweight='bold')
             ax2.set_ylabel('Atom (Element & Index)', fontsize=12, fontweight='bold')
-            ax2.set_title('Atom Importance Distribution', fontsize=14, pad=15, fontweight='bold')
+            # 将标注添加到标题前面
+            ax2.set_title('(b) Atom Importance Distribution', fontsize=14, pad=15, fontweight='bold')
 
             # 设置x轴范围，为标注留出空间
             x_max = max(atom_importance) * 1.3 if max(atom_importance) > 0 else 1.0

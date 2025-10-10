@@ -111,7 +111,7 @@ def plot_true_vs_pred(ax, true_train, pred_train, true_test, pred_test,
     ax.text(0.05, 0.95, text_box, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='left',
             bbox=dict(boxstyle='round,pad=0.5', facecolor='#F0F0F0', alpha=0.8, edgecolor='gray'),
-            fontsize=10)
+            fontsize=14, fontweight='bold')
 
     # 轴设置（保持不变）
     ax.set_xlim(x_min, x_max)
