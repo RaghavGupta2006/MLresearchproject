@@ -481,8 +481,10 @@ if __name__ == "__main__":
     plt.figure(fig.number)
     plt.tight_layout(pad=3.0)  # 增加子图间距
     plt.savefig('shap_dependence_plots_combined.png', dpi=300, bbox_inches='tight')
+    plt.savefig('shap_dependence_plots_combined.svg', bbox_inches='tight')  # 保存SVG格式
     plt.close()
     print("合并的SHAP依赖图已保存为: shap_dependence_plots_combined.png")
+    print("合并的SHAP依赖图已保存为: shap_dependence_plots_combined.svg")
 
     # 保存所有特征的定量评估数据到CSV文件
     contributions_df = pd.DataFrame.from_dict(feature_contributions, orient='index')

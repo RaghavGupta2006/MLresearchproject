@@ -609,6 +609,12 @@ class MoleculeFeatureImportanceAnalyzer:
             fig.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white',
                         edgecolor='none', transparent=False)
             print(f"分子特征重要性图像已保存至: {output_path}")
+            
+            # 保存SVG格式图像
+            svg_path = output_path.replace('.png', '.svg')
+            fig.savefig(svg_path, format='svg', bbox_inches='tight', facecolor='white',
+                        edgecolor='none', transparent=False)
+            print(f"分子特征重要性SVG图像已保存至: {svg_path}")
 
         return fig
 
