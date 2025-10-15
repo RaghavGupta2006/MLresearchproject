@@ -1,4 +1,4 @@
-# MolGBN-OPR: Multi-modal Fusion Model Based on Gradient Boosting Neural Network for Predicting Organic Micropollutant Rejection Efficiency
+# A Multimodal Fusion Framework for NF/RO Performance: Leveraging Molecular Graphs for Superior Predictive Modeling and Mechanistic Explanations
 
 ## Project Introduction
 
