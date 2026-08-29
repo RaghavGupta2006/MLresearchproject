@@ -15,10 +15,10 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
-    torch.backends.cudnn.benchmark = False     # 禁用自动优化
+    torch.backends.cudnn.deterministic = True  # CUDA RESULTS
+    torch.backends.cudnn.benchmark = False     # Note: processed parameter
 
-set_seed(42)  # 设置全局种子
+set_seed(42)  # Set global random seed
 
 
 class RegressionDNN(nn.Module):
@@ -44,7 +44,7 @@ class RegressionDNN(nn.Module):
         return x
 
 
-# 修正的GrowNet架构
+# GrowNet Architecture
 class GrowNet(nn.Module):
     def __init__(self, num_trees=7):
         super().__init__()
@@ -64,36 +64,35 @@ class GrowNet(nn.Module):
             total += weight * tree(x)
         return total
 
-# 数据路径
+# Note: processed parameter
 file_path = "../data/processed/MemTrOC-Dataset.csv"
 data = pd.read_csv(file_path)
 
-# 提取特征和标签
-X = data.iloc[:, 4:23].values  # 特征（19维）
-y = data.iloc[:, 23].values  # 标签
+# Note: processed parameter
+X = data.iloc[:, 4:23].values  # 19
+y = data.iloc[:, 23].values  # Note: processed parameter
 
-# # 归一化特征值
+# #  Value
 # scaler_X = MinMaxScaler()
 # X_normalized = scaler_X.fit_transform(X)
-#
-# # 数据集划分
+# # #
 # X_train, X_test, y_train, y_test = train_test_split(
 #     X_normalized, y, test_size=0.2, random_state=42
 # )
 # X_train, X_val, y_train, y_val = train_test_split(
 #     X_train, y_train, test_size=0.1, random_state=42
 # )
-# 先划分数据集再进行归一化
+# Note: processed parameter
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=42)
 
-# 只在训练集上拟合归一化器
+# Train Set
 scaler_X = MinMaxScaler()
 X_train = scaler_X.fit_transform(X_train)
-X_val = scaler_X.transform(X_val)  # 使用训练集的scaler
-X_test = scaler_X.transform(X_test)  # 使用训练集的scaler
+X_val = scaler_X.transform(X_val)  # Train Set scaler
+X_test = scaler_X.transform(X_test)  # Train Set scaler
 
-# 转换为 PyTorch Tensor
+# Convert to PyTorch Tensor
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
 X_val_t = torch.tensor(X_val, dtype=torch.float32)
 X_test_t = torch.tensor(X_test, dtype=torch.float32)
@@ -102,12 +101,12 @@ y_train_t = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
 y_val_t = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
 y_test_t = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-# 创建 TensorDataset
+# TensorDataset
 train_dataset = TensorDataset(X_train_t, y_train_t)
 val_dataset = TensorDataset(X_val_t, y_val_t)
 test_dataset = TensorDataset(X_test_t, y_test_t)
 
-# 创建 DataLoader
+# Create DataLoader
 batch_size = 32
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -116,19 +115,19 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
 
-# 初始化模型、损失函数和优化器
+# 、
 input_dim = X.shape[1]
 # model = ComplexNN(input_dim)
 model = GrowNet(5)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 
-# 设备选择（CPU或GPU）
-device = torch.device("cpu")  # 假设使用CPU
+# CPU GPU
+device = torch.device("cpu")  # CPU
 model.to(device)
 
 
-# 评估函数
+# Note: processed parameter
 def evaluate(model, data_loader):
     model.eval()
     y_true_list = []
@@ -143,7 +142,7 @@ def evaluate(model, data_loader):
     return calculate_metrics(np.array(y_true_list), np.array(y_pred_list))
 
 
-# 计算指标
+# Metric
 def mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     non_zero = y_true != 0
@@ -160,7 +159,7 @@ def calculate_metrics(y_true, y_pred):
     }
 
 
-# 训练模型
+# Note: processed parameter
 n_epochs = 500
 train_losses = []
 val_losses = []
@@ -178,7 +177,7 @@ for epoch in range(n_epochs):
     train_loss = np.mean(batch_losses)
     train_losses.append(train_loss)
 
-    # 验证
+    # Note: processed parameter
     model.eval()
     val_batch_losses = []
     with torch.no_grad():
@@ -192,10 +191,10 @@ for epoch in range(n_epochs):
     if (epoch + 1) % 10 == 0:
         print(f"Epoch [{epoch + 1}/{n_epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
-# 测试模型
+# Note: processed parameter
 test_metrics = evaluate(model, test_loader)
 
-# 打印结果
+# RESULTS
 print("Test Set Metrics:")
 print(f"R2: {test_metrics['R2']:.4f}")
 print(f"MAE: {test_metrics['MAE']:.4f}")

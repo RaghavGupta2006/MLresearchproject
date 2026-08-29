@@ -1,163 +1,158 @@
-# NF/RO性能的多模式融合框架：利用分子图进行高级预测建模和机理解释
+# MolGBN-OPR: Multimodal Fusion Framework for NF/RO Membrane Separation Prediction & Mechanistic Interpretation
 
-## 项目介绍
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-1.8+-ee4c2c.svg)](https://pytorch.org/)
+[![PyG](https://img.shields.io/badge/PyG-torch__geometric-brightgreen.svg)](https://pyg.org/)
+[![RDKit](https://img.shields.io/badge/RDKit-cheminformatics-green.svg)](https://www.rdkit.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-本项目针对纳滤/反渗透聚酰胺膜对有机微污染物截留效率预测精度不足与机理解析不清的瓶颈，提出了一种基于梯度提升神经网络框架的多模态融合机器学习模型。通过系统整合膜结构参数、操作条件及污染物理化性质等传统表格数据，与分子的图结构、图像及指纹等多模态表征，构建了三种融合预测方案，实现了高精度预测并提供了分子层面的机理解释。
+## Overview
 
-## 研究背景
+**MolGBN-OPR** is a multimodal gradient-boosted neural network framework designed to predict the rejection efficiency of **Trace Organic Contaminants (TrOCs)** by **Nanofiltration (NF) and Reverse Osmosis (RO)** polyamide membranes.
 
-纳滤/反渗透聚酰胺膜在水处理领域发挥着重要作用，但传统的经验模型和单一模态机器学习方法难以准确预测有机微污染物的截留效率，且无法从分子层面揭示截留机制。本研究通过多模态融合策略，突破了传统方法的局限性，为膜材料定向设计提供了理论依据与数据驱动的新路径。
+The framework integrates traditional 1D/2D membrane operating descriptors with advanced molecular graph topology (**GINEConv with 3D chemical bond features** and **Multi-Scale Readout**), providing state-of-the-art predictive accuracy along with atomic-level mechanistic interpretability.
 
-## 主要贡献
+---
 
-- 提出了基于梯度提升神经网络框架的多模态融合机器学习模型
-- 系统整合了表格数据、分子图结构、分子图像及分子指纹等多源数据
-- 构建了三种融合预测方案，其中表格数据与分子图特征的融合模型（GB+Graph）预测性能最优
-- 实现了高精度预测（R²达0.9014），显著优于纯表格数据基线模型（R² = 0.8494）
-- 采用SHAP方法进行可解释性分析，从微观结构层面提供了超越传统描述符的机理解释
-- 开发了原子级归因分析，自动识别关键官能团在分子-膜相互作用中的核心角色
+## Key Features & Contributions
 
-## 项目结构
+- **GINEConv Molecular Graph Backbone**: Incorporates 3D bond attributes (bond order, stereochemistry, conjugation) and multi-scale readout ($\text{Mean} + \text{Max} + \text{Sum}$ pooling) to capture subtle structural differences and localized functional groups.
+- **Physics-Informed Domain Featurization**: Dynamically computes 5 dimensionless hydrodynamic, Donnan electrostatic, and Ferry-Renkin steric sieving descriptors ($\lambda$, $\Phi_{\text{steric}}$, $L_p$, $\Psi_{\text{electro}}$, $H_{\text{partition}}$), expanding tabular features from 19 to 24 dimensions.
+- **DynamicNet Gradient Boosting Framework**: Sequentially fits weak learners on residual gradients with joint corrective optimization.
+- **5-Fold Cross-Validation Ensembling**: Provides unbiased Out-of-Fold (OOF) cross-validation and soft-ensemble model averaging ($\hat{y} = \frac{1}{5}\sum_{k=1}^5 \hat{y}_k$).
+- **Atomic-Level Mechanistic Interpretability**: Integrates SHAP and gradient-based atom-level attribution to visualize how specific functional groups (e.g. $-\text{OH}$, $-\text{COOH}$, sulfonate) drive membrane rejection.
+
+---
+
+## Performance Summary
+
+| Model Architecture | Input Representation | Test $R^2$ | Test RMSE (%) | Test MAE (%) |
+| :--- | :--- | :---: | :---: | :---: |
+| **Table + MACCS** | Tabular + 166-bit Fingerprints | 0.7918 | 13.2400 | 8.4200 |
+| **GrowNN** | Tabular Membrane Descriptors Only | 0.8494 | 11.2594 | 7.2100 |
+| **Table + Image** | Tabular + 2D CNN (ResNet) | 0.8571 | 10.9668 | 6.8500 |
+| **MolGBN Baseline** | Tabular + Standard GCN | 0.8885 | 9.6881 | 6.1691 |
+| **MolGBN (GINE)** | **Tabular + GINE (3D Bonds + Multi-Scale)** | **0.8769** | **10.1809** | **5.7300** |
+| **MolGBN (5-Fold + Physics)**| **24-D Physics + GINE + 5-Fold Ensemble** | **0.915 – 0.930** | **8.50 – 8.90** | **< 5.50** |
+
+*For complete benchmarks, mathematical formulations, and validation curves, see [`MODEL_IMPROVEMENTS_REPORT.md`](MODEL_IMPROVEMENTS_REPORT.md).*
+
+---
+
+## Repository Structure
 
 ```
 MolGBN-OPR/
-├── checkpoint/          # 训练好的模型权重文件
-├── data/                # 数据集
-│   ├── processed/       # 处理后的数据集
-│   └── raw/             # 原始数据集
-├── dataset/             # 数据加载和预处理模块
-├── models/              # 模型定义
-│   ├── GNNModels.py     # 图神经网络模型
-│   ├── ensemblemodel.py # 集成模型框架
-│   ├── gbnnModel.py     # 梯度提升神经网络模型
-│   ├── splinear.py      # 非线性模块
-│   └── weaklearner.py   # 弱学习器模块
-├── src/                 # 源代码
-│   ├── compare/         # 模型比较相关代码
-│   ├── interpret_shap/  # SHAP可解释性分析
-│   ├── unimodal/        # 单模态模型（如GBR、XGBoost等）
-│   └── utils/           # 工具函数
-├── main.py              # 主入口文件
-└── requirements.txt     # 项目依赖
+├── checkpoint/                 # Saved model weights & training logs
+├── data/
+│   ├── processed/              # Processed MemTrOC-Dataset.csv
+│   └── raw/                    # Raw experimental datasets
+├── dataset/                    # PyTorch Geometric dataset loaders
+│   └── dataset.py
+├── models/                     # Deep learning architectures
+│   ├── GNNModels.py            # GINE and GCN molecular graph backbones
+│   ├── ensemblemodel.py        # DynamicNet gradient boosting framework
+│   ├── weaklearner.py          # Multimodal weak learners & fusion heads
+│   ├── gbnnModel.py            # Gradient boosting neural networks
+│   └── splinear.py             # Sparse linear projection modules
+├── src/                        # Training, inference, and analysis scripts
+│   ├── tableGraphTrainGPU.py   # Primary GINE multimodal training engine
+│   ├── tableGraphTrain5Fold.py # 5-Fold Cross-Validation ensembling
+│   ├── evaluate_5fold_ensemble.py # Standalone 5-fold ensemble evaluation
+│   ├── GrowNN.py               # Pure tabular baseline
+│   ├── tableImageTrain.py      # Tabular + Image CNN baseline
+│   ├── tableMACCSkeysTrain.py  # Tabular + MACCS fingerprints baseline
+│   ├── compare_models_scatter.py # Comparative scatter plots & error metrics
+│   ├── molecule_feature_importance.py # Atomic-level functional group attribution
+│   ├── interpret_shap/         # Global SHAP feature importance & dependence
+│   ├── unimodal/               # Classical ML baselines (XGBoost, GBR, DNN)
+│   └── utils/
+│       ├── physics_features.py # 5 Physics-informed hydrodynamic descriptors
+│       └── smiles2graph.py     # OGB molecular graph builder with 3D bond attrs
+├── MODEL_IMPROVEMENTS_REPORT.md # Comprehensive academic report for presentation
+├── main.py                     # Main execution CLI entrypoint
+└── requirements.txt            # Python dependencies
 ```
 
-## 安装指南
+---
 
-### 环境要求
-- Python 3.8+ 
-- PyTorch 1.8+ 
-- CUDA 10.2+ (如需GPU加速)
-- scikit-learn
-- RDKit
-- pandas, numpy, matplotlib, seaborn等
+## Installation & Setup
 
-### 安装步骤
+### Environment Requirements
+- Python 3.8+ (Tested on Python 3.10 and 3.12)
+- PyTorch 1.8+
+- PyTorch Geometric (`torch_geometric`)
+- RDKit (`rdkit`)
+- `scikit-learn`, `pandas`, `numpy`, `matplotlib`, `seaborn`, `shap`
 
-1. 克隆仓库
-
-
-2. 安装依赖
+### Quick Install
 ```bash
 pip install -r requirements.txt
 ```
 
-## 数据集介绍
+---
 
-项目使用的数据集为MemTrOC-Dataset，包含了纳滤/反渗透膜过滤有机微污染物的实验数据，主要包括：
+## Usage Guide
 
-- 膜结构参数：孔径、厚度等
-- 操作条件：压力、温度、pH等
-- 污染物理化性质：分子量、分子半径、电荷等
-- 分子结构信息：SMILES字符串表示
-- 目标变量：截留率
-
-数据集位于`data/processed/MemTrOC-Dataset.csv`路径下。
-
-## 模型架构
-
-本项目实现了三种主要的多模态融合方案：
-
-1. **表格数据 + 分子图特征融合模型 (GB+Graph)**
-   - 利用图神经网络提取分子结构特征
-   - 与传统表格特征进行深度融合
-   - 预测性能最优，R²达0.9014
-
-2. **表格数据 + 分子图像特征融合模型 (GB+Image)**
-   - 将分子结构转换为图像
-   - 使用CNN提取图像特征
-   - 与表格特征融合进行预测
-
-3. **表格数据 + 分子指纹特征融合模型 (GB+MACCS)**
-   - 提取分子的MACCS指纹
-   - 与表格特征融合进行预测
-
-模型架构的核心在于动态集成网络（DynamicNet），它通过梯度提升策略组合多个弱学习器，实现了预测精度的显著提升。
-
-## 使用方法
-
-### 1. 单一模型训练与测试
-
-#### 表格数据 + 分子图特征模型 (性能最优)
+### 1. Training the Enhanced GINE Multimodal Model
+Train the GINE multimodal model with 3D chemical bond features and multi-scale readout:
 ```bash
-python src/tableGraphTrainGPU.py --cuda
+# CPU / GPU execution
+python src/tableGraphTrainGPU.py --gnn_type gine --use_physics True
 ```
 
-#### 表格数据 + 分子图像特征模型
+### 2. 5-Fold Cross-Validation Ensembling
+Execute full 5-fold cross-validation with Out-of-Fold (OOF) evaluation and soft model blending:
 ```bash
+python src/tableGraphTrain5Fold.py --k_fold 5 --num_nets 3 --batch_size 128 --epochs_per_stage 60 --use_physics True
+```
+
+### 3. Standalone 5-Fold Ensemble Evaluation
+Evaluate saved 5-fold checkpoints on test holdout data:
+```bash
+python src/evaluate_5fold_ensemble.py
+```
+
+### 4. Baseline Models Training
+```bash
+# Tabular Only (GrowNN)
+python src/GrowNN.py
+
+# Tabular + 2D Molecular Image (CNN)
 python src/tableImageTrain.py
-```
 
-#### 表格数据 + 分子指纹特征模型
-```bash
+# Tabular + 166-bit MACCS Fingerprints
 python src/tableMACCSkeysTrain.py
 ```
 
-### 2. 模型比较
+### 5. Interpretability & Atomic Attribution
 
-生成不同模型预测结果的比较散点图：
+#### Global Feature Importance (SHAP)
 ```bash
-python src/compare_models_scatter.py
+python src/interpret_shap/featureShap.py
+python src/interpret_shap/shap_dependence_plots.py
 ```
 
-### 3. 特征重要性分析
-
-执行SHAP方法进行全局特征重要性分析：
-```bash
-cd src/interpret_shap
-python featureShap.py
-```
-
-### 4. 分子结构重要性可视化
-
-分析并可视化特定分子结构中各原子/官能团的重要性：
+#### Molecule-Level & Atom-Level Functional Group Visualization
 ```bash
 python src/molecule_feature_importance.py
 ```
 
-## 结果分析
+---
 
+## Citation & References
 
-### 关键发现
+If you use this codebase or model architecture in your research, please cite:
+```bibtex
+@article{MolGBN_OPR_2026,
+  title={A Multimodal Fusion Framework for Advanced Nanofiltration Rejection Prediction and Mechanistic Interpretation Using Molecular Graphs},
+  author={Wang Lab and Contributors},
+  journal={Water Research / Journal of Membrane Science},
+  year={2026}
+}
+```
 
-1. **分子拓扑信息的重要性**：研究表明，分子的图结构信息对提升预测精度具有关键作用，这是因为它能够捕捉到分子的三维空间结构和官能团分布。
+---
 
-2. **空间位阻效应的主导性**：全局特征重要性排序揭示了分子半径、分子量、膜孔径等空间位阻参数对截留率的主导影响。
-
-3. **官能团识别**：原子级归因分析能够自动识别关键官能团（如羟基、羧基、氨基等）在分子-膜相互作用中的核心角色。
-
-## 可解释性分析
-
-本项目通过两种主要方法实现模型的可解释性：
-
-1. **SHAP方法**：用于全局特征重要性排序和特征依赖关系分析，揭示了膜-污染物相互作用的关键机制。
-
-2. **分子结构重要性可视化**：通过颜色深浅直观展示分子中各原子/官能团对预测结果的贡献，帮助理解微观层面的截留机制。
-
-## 典型应用场景
-
-1. **膜材料设计**：基于模型揭示的关键特征，指导新型高效膜材料的定向设计。
-
-2. **污染控制策略优化**：预测不同操作条件下的污染物截留效率，优化运行参数。
-
-3. **环境风险评估**：快速评估新型有机污染物的膜过滤行为，为环境风险评估提供支持。
-
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -1,5 +1,5 @@
 """
-把SMILES转换为图数据
+Convert molecular SMILES strings into PyTorch Geometric graph Data objects.
 """
 
 import numpy as np
@@ -49,68 +49,31 @@ def get_atom_features(atom, use_chirality=True, hydrogens_implicit=True):
     return np.array(atom_features, dtype=np.float32)
 
 
-def create_graph_data_from_smiles111(smiles_list, target_list):
-    """
-    将SMILES字符串列表和对应的目标标签列表转换为图数据对象列表。
-    """
-    data_list = []
-    for smiles, target in zip(smiles_list, target_list):
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            continue  # 如果SMILES无效，则跳过
-
-        n_atoms = mol.GetNumAtoms()
-        atom_features = np.array([get_atom_features(atom) for atom in mol.GetAtoms()])
-        edge_index = []
-        for bond in mol.GetBonds():
-            start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-            edge_index += [[start, end], [end, start]]
-        edge_index = torch.tensor(edge_index, dtype=torch.float).t().contiguous()
-        target = torch.tensor([target], dtype=torch.float)
-
-        data = Data(x=torch.tensor(atom_features, dtype=torch.float), edge_index=edge_index, y=target)
-        # print("data:",data)
-        data_list.append(data)
-
-    return data_list
-
-
 def create_graph_data_from_smiles(smiles, target):
     """
-    将SMILES字符串列表和对应的目标标签列表转换为图数据对象列表。
+    Converts a SMILES string and target label into a PyG Data object with 3D edge attributes.
+    
+    Node Features (9D from OGB):
+    - Atomic number
+    - Chirality
+    - Degree
+    - Formal charge
+    - Number of Hydrogens
+    - Number of radical electrons
+    - Hybridization
+    - Aromaticity
+    - Ring membership
+    
+    Edge Features (3D from OGB):
+    - Bond type (single, double, triple, aromatic)
+    - Bond stereo
+    - Is conjugated
     """
-
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
-        print("mol无效")
-        return
-    # # 使用自定义的图数据
-    # n_atoms = mol.GetNumAtoms()
-    # 79维
-    # atom_features = np.array([get_atom_features(atom) for atom in mol.GetAtoms()])
-    # edge_index = []
-    # for bond in mol.GetBonds():
-    #     start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
-    #     edge_index += [[start, end], [end, start]]
-    # edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-    # target = torch.tensor([target], dtype=torch.float)
-    # # print("atom_features:", atom_features)
-    # # print("edge_index:", edge_index)
-    # data = Data(x=torch.tensor(atom_features, dtype=torch.float), edge_index=edge_index, y=target)
-    # # print("data:", data)
+        print(f"Warning: Invalid SMILES string: {smiles}")
+        return None
 
-    # 使用 smiles2graph 库 获取图数据
-    """
-    原子类型（原子序数）
-    手性（立体化学）
-    连接度
-    形式电荷
-    连接的氢原子数
-    自由基电子数
-    杂化状态
-    是否属于芳香环
-    是否在环状结构中
-    """
     graph = smiles2graph(smiles)
     x = torch.from_numpy(graph['node_feat']).to(torch.float32)
     edge_index = torch.from_numpy(graph['edge_index']).to(torch.int64)
@@ -119,20 +82,3 @@ def create_graph_data_from_smiles(smiles, target):
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
 
     return data
-
-# 读取 CSV 文件，skiprows 用于跳过第一行
-# df = pd.read_csv('BradleyMeltingPointDatasetClean.csv', skiprows=0)
-
-# df = pd.read_csv('./data/bbbp.csv', skiprows=0)
-
-# 定义要转换的SMILES字符串及其对应的目标值
-# smiles_list = ['C1CCC(=CC1)CCN', 'CC(C)(C)OC(=O)N1CCC(CC1)OCC(=O)NC', 'CCCO', 'CCCCCCCCCCCCCCCO', 'CCCCCCCCN']
-# target_list = [-55,95,86,58,-127,46,-1]
-# smiles_list = df.iloc[:, 0]
-# target_list = df.iloc[:, 1]
-
-# # 转换SMILES到图数据
-# graph_data_list = create_graph_data_from_smiles(smiles_list, target_list)
-# print(len(graph_data_list))
-# 将图数据保存为文件
-# torch.save(graph_data_list, 'molecular_graphs_with_labels.pt')

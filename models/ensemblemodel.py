@@ -1,6 +1,5 @@
 from enum import Enum
 import torch
-# import pickle
 import torch.nn as nn
 
 
@@ -12,7 +11,7 @@ class ForwardType(Enum):
 
 
 """
-DynamicNet 用于 仅表格数据  训练
+DynamicNet for Tabular-Only Gradient Boosted Neural Networks
 """
 
 
@@ -21,7 +20,6 @@ class DynamicNet(object):
         self.models = []
         self.c0 = c0
         self.lr = lr
-        #self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.device = torch.device('cpu')
         self.boost_rate = nn.Parameter(torch.tensor(self.lr, requires_grad=True, device=self.device))
 
@@ -32,7 +30,6 @@ class DynamicNet(object):
         params = []
         for m in self.models:
             params.extend(m.parameters())
-
         params.append(self.boost_rate)
         return params
 
@@ -69,7 +66,6 @@ class DynamicNet(object):
     def forward_grad(self, x):
         if len(self.models) == 0:
             return None, self.c0
-        # at least one model
         middle_feat_cum = None
         prediction = None
         for m in self.models:
@@ -82,7 +78,7 @@ class DynamicNet(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)
         net = DynamicNet(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
@@ -98,8 +94,7 @@ class DynamicNet(object):
 
 
 """
-DynamicNetForMLPGNN 用于 表格数据 + 分子图数据 训练
-
+DynamicNetForMLPGNN for Tabular Data + Molecular Graph Data Training
 """
 
 
@@ -118,7 +113,6 @@ class DynamicNetForMLPGNN(object):
         params = []
         for m in self.models:
             params.extend(m.parameters())
-
         params.append(self.boost_rate)
         return params
 
@@ -150,14 +144,11 @@ class DynamicNetForMLPGNN(object):
                 else:
                     middle_feat_cum, pred = m(x, graph_data, middle_feat_cum)
                     prediction += pred
-            # print("我运行了")
-            # print("self.c0 + self.boost_rate * prediction\n", self.c0 + self.boost_rate * prediction)
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
     def forward_grad(self, x, graph_data):
         if len(self.models) == 0:
             return None, self.c0
-        # at least one model
         middle_feat_cum = None
         prediction = None
         for m in self.models:
@@ -170,7 +161,7 @@ class DynamicNetForMLPGNN(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)
         net = DynamicNetForMLPGNN(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
@@ -186,8 +177,7 @@ class DynamicNetForMLPGNN(object):
 
 
 """
-DynamicNetForMLPImage 用于 表格数据 + 分子图像数据 训练
-
+DynamicNetForMLPImage for Tabular Data + Molecular 2D Image Data Training
 """
 
 
@@ -206,7 +196,6 @@ class DynamicNetForMLPImage(object):
         params = []
         for m in self.models:
             params.extend(m.parameters())
-
         params.append(self.boost_rate)
         return params
 
@@ -238,14 +227,11 @@ class DynamicNetForMLPImage(object):
                 else:
                     middle_feat_cum, pred = m(x, image_data, middle_feat_cum)
                     prediction += pred
-            # print("我运行了")
-            # print("self.c0 + self.boost_rate * prediction\n", self.c0 + self.boost_rate * prediction)
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
     def forward_grad(self, x, image_data):
         if len(self.models) == 0:
             return None, self.c0
-        # at least one model
         middle_feat_cum = None
         prediction = None
         for m in self.models:
@@ -258,7 +244,7 @@ class DynamicNetForMLPImage(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)
         net = DynamicNetForMLPImage(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
@@ -274,7 +260,7 @@ class DynamicNetForMLPImage(object):
 
 
 """
-DynamicNetForMLPImage 用于 表格数据 + 分子图 + 分子图像数据 训练
+DynamicNetForMLPGNNImage for Tabular + Molecular Graph + Image Tri-Modal Training
 """
 
 
@@ -293,7 +279,6 @@ class DynamicNetForMLPGNNImage(object):
         params = []
         for m in self.models:
             params.extend(m.parameters())
-
         params.append(self.boost_rate)
         return params
 
@@ -325,14 +310,11 @@ class DynamicNetForMLPGNNImage(object):
                 else:
                     middle_feat_cum, pred = m(x, graph_data, image_data, middle_feat_cum)
                     prediction += pred
-            # print("我运行了")
-            # print("self.c0 + self.boost_rate * prediction\n", self.c0 + self.boost_rate * prediction)
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
     def forward_grad(self, x, graph_data, image_data):
         if len(self.models) == 0:
             return None, self.c0
-        # at least one model
         middle_feat_cum = None
         prediction = None
         for m in self.models:
@@ -345,7 +327,7 @@ class DynamicNetForMLPGNNImage(object):
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)
         net = DynamicNetForMLPGNNImage(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):
@@ -361,8 +343,7 @@ class DynamicNetForMLPGNNImage(object):
 
 
 """
-DynamicNetForMLPKeys 用于 表格数据 + 分子指纹数据 训练
-
+DynamicNetForMLPKeys for Tabular + MACCS Fingerprint Data Training
 """
 
 
@@ -381,7 +362,6 @@ class DynamicNetForMLPKeys(object):
         params = []
         for m in self.models:
             params.extend(m.parameters())
-
         params.append(self.boost_rate)
         return params
 
@@ -401,7 +381,7 @@ class DynamicNetForMLPKeys(object):
         for m in self.models:
             m.train(True)
 
-    def forward(self, x, image_data):
+    def forward(self, x, keys_data):
         if len(self.models) == 0:
             return None, self.c0
         middle_feat_cum = None
@@ -409,31 +389,28 @@ class DynamicNetForMLPKeys(object):
         with torch.no_grad():
             for m in self.models:
                 if middle_feat_cum is None:
-                    middle_feat_cum, prediction = m(x, image_data, middle_feat_cum)
+                    middle_feat_cum, prediction = m(x, keys_data, middle_feat_cum)
                 else:
-                    middle_feat_cum, pred = m(x, image_data, middle_feat_cum)
+                    middle_feat_cum, pred = m(x, keys_data, middle_feat_cum)
                     prediction += pred
-            # print("我运行了")
-            # print("self.c0 + self.boost_rate * prediction\n", self.c0 + self.boost_rate * prediction)
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
-    def forward_grad(self, x, image_data):
+    def forward_grad(self, x, keys_data):
         if len(self.models) == 0:
             return None, self.c0
-        # at least one model
         middle_feat_cum = None
         prediction = None
         for m in self.models:
             if middle_feat_cum is None:
-                middle_feat_cum, prediction = m(x, image_data, middle_feat_cum)
+                middle_feat_cum, prediction = m(x, keys_data, middle_feat_cum)
             else:
-                middle_feat_cum, pred = m(x, image_data, middle_feat_cum)
+                middle_feat_cum, pred = m(x, keys_data, middle_feat_cum)
                 prediction += pred
         return middle_feat_cum, self.c0 + self.boost_rate * prediction
 
     @classmethod
     def from_file(cls, path, builder):
-        d = torch.load(path, weights_only=False)  # d = torch.load(path, weights_only=True)
+        d = torch.load(path, weights_only=False)
         net = DynamicNetForMLPKeys(d['c0'], d['lr'])
         net.boost_rate = d['boost_rate']
         for stage, m in enumerate(d['models']):

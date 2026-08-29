@@ -66,12 +66,12 @@ class NewModel(nn.Module):
         c2 = 16
         dropout_rate = 0.2
 
-        self.conv1 = nn.Conv1d(1, c1, 4)  # Add padding to maintain spatial dimensions
+        self.conv1 = nn.Conv1d(1, c1, 4)
         self.pool = nn.MaxPool1d(2)
         self.conv2 = nn.Conv1d(c1, c2, 4)
         self.relu = nn.ReLU()
         self.flat = nn.Flatten()
-        self.fc1 = nn.Linear(c2 * 4, f1)  # Adjust input size based on pooling and padding
+        self.fc1 = nn.Linear(c2 * 4, f1)
         self.fc2 = nn.Linear(f1, f2)
         self.fc3 = nn.Linear(f2, 1)
         self.drop = nn.Dropout(p=dropout_rate)
@@ -100,11 +100,11 @@ def get_new_model():
     return net
 
 
-# 改进的回归DNN模型
+# Enhanced Regression DNN Model
 class RegressionDNN(nn.Module):
-    def __init__(self):
+    def __init__(self, in_features=19):
         super(RegressionDNN, self).__init__()
-        self.fc1 = nn.Linear(19, 128)
+        self.fc1 = nn.Linear(in_features, 128)
         self.bn1 = nn.BatchNorm1d(128)
         self.fc2 = nn.Linear(128, 256)
         self.bn2 = nn.BatchNorm1d(256)
@@ -124,11 +124,11 @@ class RegressionDNN(nn.Module):
         return x
 
 
-# 修正的GrowNet架构
+# GrowNet Architecture
 class GrowNet(nn.Module):
-    def __init__(self, num_trees=7):
+    def __init__(self, num_trees=7, in_features=19):
         super().__init__()
-        self.trees = nn.ModuleList([RegressionDNN() for _ in range(num_trees)])
+        self.trees = nn.ModuleList([RegressionDNN(in_features=in_features) for _ in range(num_trees)])
         self.weights = nn.ParameterList([nn.Parameter(torch.ones(1)) for _ in range(num_trees)])
 
     def partial_predict(self, x, num_trees):
@@ -145,6 +145,6 @@ class GrowNet(nn.Module):
         return total
 
 
-def get_1dcnn_model(num_trees):
-    net = GrowNet(num_trees)
+def get_1dcnn_model(num_trees, in_features=19):
+    net = GrowNet(num_trees, in_features=in_features)
     return net

@@ -21,16 +21,16 @@ from rdkit.Chem.AllChem import GetMorganFingerprintAsBitVect
 import random
 
 """
-用于 表格数据 + 分子指纹数据 训练
+Training pipeline for Tabular Descriptors + Molecular Fingerprint Data
 
 """
 parser = argparse.ArgumentParser()
 
 # Integer parameters with no default value and required flag
-parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19 + 167)  # 输入特征维度
-parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=256)  # 弱学习器隐藏层维度
+parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19 + 167)  # Input feature dimension
+parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=256)  # Hidden layer dimension of weak learner
 
-# 添加命令行参数选择指纹类型
+# Note: processed parameter
 parser.add_argument('--fingerprint', type=str, choices=['maccs', 'morgan', 'rdkit', 'atompair', 'pubchem'],
                     default='pubchem', help='Type of molecular fingerprint to use')
 
@@ -105,15 +105,15 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 
-# 将SMILES转换为指纹（处理无效分子）
+# SMILES
 def smiles_to_fingerprint(smiles, fp_type='maccs', n_bits=2048):
     """
-    将SMILES转换为指定的分子指纹
-    支持的指纹类型: 'maccs', 'morgan', 'rdkit', 'atompair'
+     SMILES 
+     : 'maccs', 'morgan', 'rdkit', 'atompair'
     """
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
-        # 返回全0向量
+        # 0
         return np.zeros(n_bits if fp_type != 'maccs' else 167, dtype=np.float32)
 
     if fp_type == 'maccs':
@@ -121,86 +121,86 @@ def smiles_to_fingerprint(smiles, fp_type='maccs', n_bits=2048):
         return np.array([int(bit) for bit in fingerprints.ToBitString()], dtype=np.float32)
 
     elif fp_type == 'morgan':
-        # 圆形指纹 (ECFP)
+        # (ECFP)
         fp = GetMorganFingerprintAsBitVect(mol, radius=2, nBits=n_bits)
         return np.array(fp, dtype=np.float32)
 
     elif fp_type == 'rdkit':
-        # RDKit拓扑指纹
+        # RDKit
         fp = Chem.RDKFingerprint(mol, fpSize=n_bits)
         return np.array(fp, dtype=np.float32)
 
     elif fp_type == 'atompair':
-        # 原子对指纹
+        # Note: processed parameter
         fp = rdMolDescriptors.GetHashedAtomPairFingerprintAsBitVect(mol, nBits=n_bits)
         return np.array(fp, dtype=np.float32)
 
     else:
-        raise ValueError(f"不支持的指纹类型: {fp_type}")
+        raise ValueError(f" : {fp_type}")
 
 
-import time  # 确保已经导入time模块
+import time  # time
 import random
 
 
-# 修改后的smiles_to_pubchem_fingerprint函数
+# smiles_to_pubchem_fingerprint
 def smiles_to_pubchem_fingerprint(smiles: str, n_bits: int = 881) -> np.ndarray:
     """
-    将SMILES转换为PubChem指纹（881位）
+     SMILES PubChem （881 ）
 
-    参数:
-        smiles: SMILES字符串
-        n_bits: 指纹长度(PubChem固定881位)
+     :
+        smiles: SMILES 
+        n_bits:  (PubChem 881 )
 
-    返回:
-        np.ndarray: 881位的指纹向量
+     :
+        np.ndarray: 881 
     """
-    max_retries = 3  # 最大重试次数
-    base_delay = 1.0  # 基础延迟时间（秒）
+    max_retries = 3  # Note: processed parameter
+    base_delay = 1.0  # Note: processed parameter
 
     for attempt in range(max_retries):
         try:
-            # 首先将SMILES转换为RDKit分子对象
+            # SMILES RDKit
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
                 return np.zeros(n_bits, dtype=np.float32)
 
-            # 添加随机延迟以避免请求过快
+            # Note: processed parameter
             delay = base_delay * (2 ** attempt) + random.uniform(0, 0.3)
             time.sleep(delay)
 
-            # 获取PubChem CID
+            # PubChem CID
             compounds = pcp.get_compounds(smiles, namespace='smiles')
             if not compounds:
                 return np.zeros(n_bits, dtype=np.float32)
 
             cid = compounds[0].cid
 
-            # 再次添加延迟
+            # Note: processed parameter
             time.sleep(delay)
 
-            # 获取指纹
+            # Note: processed parameter
             result = pcp.Compound.from_cid(cid).cactvs_fingerprint
             if not result:
                 return np.zeros(n_bits, dtype=np.float32)
 
-            # 将十六进制指纹转换为二进制数组
+            # Note: processed parameter
             hex_str = result.split()[0]
             binary_str = bin(int(hex_str, 16))[2:].zfill(n_bits)
             return np.array([int(bit) for bit in binary_str[-n_bits:]], dtype=np.float32)
 
         except pcp.PubChemHTTPError as e:
-            print(f"PubChem HTTP错误 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
-            if "503" in str(e):  # 服务不可用错误
-                # 指数退避策略
+            print(f"PubChem HTTP  (  {attempt + 1}/{max_retries}): {str(e)}")
+            if "503" in str(e):  # Note: processed parameter
+                # Note: processed parameter
                 time.sleep(base_delay * (2 ** attempt))
             continue
         except Exception as e:
-            print(f"处理SMILES {smiles}时出错 (尝试 {attempt + 1}/{max_retries}): {str(e)}")
+            print(f" SMILES {smiles}  (  {attempt + 1}/{max_retries}): {str(e)}")
             time.sleep(base_delay * (2 ** attempt))
             continue
 
-    print(f"SMILES {smiles} 的所有尝试均失败，返回全0指纹")
+    print(f"SMILES {smiles}  ， 0 ")
     return np.zeros(n_bits, dtype=np.float32)
 def worker_init_fn(worker_id):
     np.random.seed(41 + worker_id)
@@ -209,82 +209,82 @@ def worker_init_fn(worker_id):
 
 def set_seed(seed):
     import os
-    os.environ['PYTHONHASHSEED'] = str(seed)  # 新增
+    os.environ['PYTHONHASHSEED'] = str(seed)  # Note: processed parameter
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
-    torch.backends.cudnn.benchmark = False  # 禁用自动优化
+    torch.backends.cudnn.deterministic = True  # CUDA RESULTS
+    torch.backends.cudnn.benchmark = False  # Note: processed parameter
     # os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 if __name__ == "__main__":
     seed = 41
-    set_seed(seed)  # 设置全局种子
+    set_seed(seed)  # Set global random seed
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
     device = torch.device('cuda' if args.cuda and torch.cuda.is_available() else 'cpu')
-    print(f"训练设备：{device}")
-    # 数据路径
+    print(f" ：{device}")
+    # Note: processed parameter
     file_path = "../data/processed/MemTrOC-Dataset.csv"
     data = pd.read_csv(file_path)
 
     # data = data.head(10)
-    # 提取特征和标签
-    X = data.iloc[:, 4:23].values  # 特征（19维）
-    y = data.iloc[:, 23].values  # 标签
+    # Note: processed parameter
+    X = data.iloc[:, 4:23].values  # 19
+    y = data.iloc[:, 23].values  # Note: processed parameter
 
-    smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
-    # 确定指纹位数（MACCS固定167位，其他自定义）
-    # 确定指纹位数
+    smiles_list = data.iloc[:, 3].values  # 3 SMILES
+    # MACCS 167
+    # Note: processed parameter
     if args.fingerprint == 'maccs':
         fp_bits = 167
     elif args.fingerprint == 'pubchem':
-        fp_bits = 881  # PubChem指纹固定881位
+        fp_bits = 881  # PubChem 881
     else:
-        fp_bits = 2048  # 其他指纹默认2048位
+        fp_bits = 2048  # 2048
 
-    # 为所有SMILES生成指定类型的指纹特征
+    # SMILES
     if args.fingerprint == 'pubchem':
-        print("正在生成PubChem指纹...")
+        print(" PubChem ...")
         fingerprint_features = np.array([
             smiles_to_pubchem_fingerprint(smiles)
             for smiles in smiles_list
         ])
-        print("生成成功")
+        print(" ")
     else:
         fingerprint_features = np.array([
             smiles_to_fingerprint(smiles, args.fingerprint, fp_bits)
             for smiles in smiles_list
         ])
 
-    # 检查是否有无效SMILES
+    # SMILES
     invalid_mask = (fingerprint_features.sum(axis=1) == 0)
     if invalid_mask.any():
-        print(f"警告：发现 {invalid_mask.sum()} 个无效SMILES，已自动填充全0指纹")
+        print(f" ：  {invalid_mask.sum()}  SMILES， 0 ")
 
-    # 合并数值特征和指纹特征
+    # Value
     X = np.hstack([X.astype(np.float32), fingerprint_features])
 
-    # 更新特征维度参数
+    # Note: processed parameter
     args.feat_d = X.shape[1]
-    print(f"使用指纹类型: {args.fingerprint}, 总特征维度: {args.feat_d}")
+    print(f" : {args.fingerprint},  : {args.feat_d}")
 
     print("X type:", type(X))
     print("X shape:", X.shape)
     print("X:", X)
 
-    # 先划分数据集再进行归一化
+    # Note: processed parameter
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=seed)
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2 / 0.9, random_state=seed)
-    # 只在训练集上拟合归一化器
+    # Train Set
     scaler_X = MinMaxScaler()
     X_train = scaler_X.fit_transform(X_train)
-    X_val = scaler_X.transform(X_val)  # 使用训练集的scaler
-    X_test = scaler_X.transform(X_test)  # 使用训练集的scaler
-    # 转换为 PyTorch Tensor
+    X_val = scaler_X.transform(X_val)  # Train Set scaler
+    X_test = scaler_X.transform(X_test)  # Train Set scaler
+    # Convert to PyTorch Tensor
     X_train_t = torch.tensor(X_train, dtype=torch.float32)
     X_val_t = torch.tensor(X_val, dtype=torch.float32)
     X_test_t = torch.tensor(X_test, dtype=torch.float32)
@@ -293,12 +293,12 @@ if __name__ == "__main__":
     y_val_t = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
     y_test_t = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-    # 创建数据集
+    # Create dataset
     train_dataset = TensorDataset(X_train_t, y_train_t)
     val_dataset = TensorDataset(X_val_t, y_val_t)
     test_dataset = TensorDataset(X_test_t, y_test_t)
 
-    # 创建 DataLoader
+    # Create DataLoader
     batch_size = args.batch_size
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -310,43 +310,43 @@ if __name__ == "__main__":
     best_rmse = pow(10, 6)
     val_rmse = best_rmse
     best_stage = args.num_nets - 1
-    c0 = y_train.mean()  # init_gbnn(train) # c0是训练集目标值的平均值
-    net_ensemble = DynamicNet(c0, args.boost_rate)  # 初始化集成网络，由多个弱学习器组成
+    c0 = y_train.mean()  # init_gbnn(train) # c0 Train Set Value Value
+    net_ensemble = DynamicNet(c0, args.boost_rate)  # Note: processed parameter
     loss_f1 = nn.MSELoss()
     loss_models = torch.zeros((args.num_nets, 3))
-    for stage in range(args.num_nets):  # 几个弱学习器就几个循环
+    for stage in range(args.num_nets):  # Iterate across weak learner stages
         t0 = time.time()
-        # 如果是第一个弱学习器，隐藏层维度和后面的弱学习器不一样
+        # Note: processed parameter
         model = MLP_Maccs.get_model(stage, args)  # Initialize the model_k: f_k(x), multilayer perception v2
         if args.cuda:
             model
 
-        optimizer = get_optim(model.parameters(), args.lr, args.L2)  # 获得优化器
+        optimizer = get_optim(model.parameters(), args.lr, args.L2)  # Initialize optimizer
         net_ensemble.to_train()  # Set the models in ensemble net to train mode
-        stage_mdlloss = []  # 保存每一次循环的损失。每多一次循环就多一个弱学习器。
-        for epoch in range(args.epochs_per_stage):  # 在每一次循环中训练当前的弱学习器，弱学习器去学习残差
+        stage_mdlloss = []  # Note: processed parameter
+        for epoch in range(args.epochs_per_stage):  # Note: processed parameter
             for i, (x, y) in enumerate(train_loader):
 
                 if args.cuda:
                     x = x
                     y = torch.as_tensor(y, dtype=torch.float32).view(-1, 1)
-                middle_feat, out = net_ensemble.forward(x)  # 使用多个弱学习器组合的学习器去得到预测值以及倒数第二层输出
+                middle_feat, out = net_ensemble.forward(x)  # Value
                 out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
-                grad_direction = -(out - y)  # 根据预测值得到残差
+                grad_direction = -(out - y)  # Value
 
-                _, out = model(x, middle_feat)  # 使用当前弱学习器去学习残差，x以及强学习器的倒数第二层作为输入
+                _, out = model(x, middle_feat)  # x
                 out = torch.as_tensor(out, dtype=torch.float32).view(-1, 1)
                 loss = loss_f1(net_ensemble.boost_rate * out, grad_direction)  # T
 
                 model.zero_grad()
                 loss.backward()
-                optimizer.step()  # 对当前弱学习器进行参数更新
+                optimizer.step()  # Update weak learner parameters
                 stage_mdlloss.append(loss.item() * len(y))
 
-        net_ensemble.add(model)  # 当前弱学习器训练好后，加入集成模型中
-        sml = np.sqrt(np.sum(stage_mdlloss) / N)  # 平均每个训练样本的损失
+        net_ensemble.add(model)  # Add trained weak learner to ensemble
+        sml = np.sqrt(np.sum(stage_mdlloss) / N)  # Average sample loss
 
-        # 上述训练完成后得到一个有多个弱学习器组成的强学习器，下面再使用训练数据对该强学习器进行微调，学习率降低
+        # Joint corrective step for ensemble refinement Reduced learning rate
         lr_scaler = 3
         # fully-corrective step
         stage_loss = []
@@ -427,7 +427,7 @@ if __name__ == "__main__":
     #     (y_val - torch.mean(y_val)) ** 2)
     # R2_test = 1 - torch.mean((y_test - prediction_test) ** 2) / torch.mean(
     #     (y_test - torch.mean(y_test)) ** 2)
-    print("------------------------结果------------------------")
+    print("------------------------RESULTS------------------------")
     print(f'train: R2：{R2_train}\n')
     print(f'val: R2：{R2_val}\n')
     print(f'test: R2：{R2_test}\n')
@@ -441,12 +441,12 @@ if __name__ == "__main__":
     # Save the trained model (optional)
     # torch.save(trained_model.state_dict(), 'checkpoint/1DGBCNN_model.pth')
 
-    # 计算训练集、验证集和测试集上的MAE
+    # Train Set、Validation Set Test Set MAE
     mae_train = mean_absolute_error(y_train, prediction_train.detach().numpy())
     mae_val = mean_absolute_error(y_val, prediction_val.detach().numpy())
     mae_test = mean_absolute_error(y_test, prediction_test.detach().numpy())
 
-    # # 计算训练集、验证集和测试集上的MAPE
+    # #  Train Set、Validation Set Test Set MAPE
     # mape_train = mean_absolute_percentage_error(y_train.numpy(), prediction_train.detach().numpy())
     # mape_val = mean_absolute_percentage_error(y_val.numpy(), prediction_val.detach().numpy())
     # mape_test = mean_absolute_percentage_error(y_test.numpy(), prediction_test.detach().numpy())
@@ -458,35 +458,35 @@ if __name__ == "__main__":
     # print(f'val: MAPE：{mape_val}\n')
     # print(f'test: MAPE：{mape_test}\n')
 
-    # 保存到日志文件
+    # Save results to log file
     argsDict = args.__dict__
-    # 将结果和超参数保存到日志文件
+    # RESULTS Save results to log file
     log_path = '../checkpoint/tableFingerPrintTrain_log.txt'
 
-    with open(log_path, 'a', encoding='utf-8') as f:  # 使用追加模式，并指定编码为utf-8
-        # 添加文件顶部的分割线
+    with open(log_path, 'a', encoding='utf-8') as f:  # utf-8
+        # Add file header delimiter
         f.write("\n" + "=" * 60 + "\n")
-        f.write("{" + "训练结果记录".center(58) + "}\n")
+        f.write("{" + "Training Results Record".center(58) + "}\n")
         f.write("=" * 60 + "\n\n")
 
-        # 保存训练、验证、测试集的评价指标
-        f.write("## 模型评估指标\n")
+        # 、 、Test Set Metric
+        f.write("## Model Evaluation Metrics\n")
         f.write("-" * 60 + "\n")
-        f.write("|       指标       |  训练集  |  验证集  |  测试集  |\n")
+        f.write("|       Metric       |  Train Set  |  Validation Set  |  Test Set  |\n")
         f.write("-" * 60 + "\n")
-        f.write(f"|     R² 值     | {R2_train:.4f}    | {R2_val:.4f}    | {R2_test:.4f}    |\n")
+        f.write(f"|     R² Value     | {R2_train:.4f}    | {R2_val:.4f}    | {R2_test:.4f}    |\n")
         f.write(f"|     RMSE     | {rmse_train:.4f}    | {rmse_val:.4f}    | {rmse_test:.4f}    |\n")
         f.write(f"|     MAE      | {mae_train:.4f}    | {mae_val:.4f}    | {mae_test:.4f}    |\n")
         f.write("-" * 60 + "\n\n")
 
-        # 保存超参数
-        f.write("## 超参数设置\n")
+        # Save hyperparameters
+        f.write("## Hyperparameter Settings\n")
         f.write("-" * 60 + "\n")
-        f.write("名称 | 值\n")
+        f.write("Name | Value\n")
         f.write("-" * 60 + "\n")
         for eachArg, value in argsDict.items():
             f.write(f"{eachArg.ljust(20)} | {str(value).ljust(40)}\n")
         f.write("-" * 60 + "\n\n")
 
-        # 文件底部的分割线
+        # Add file footer delimiter
         f.write("=" * 60 + "\n\n")

@@ -21,21 +21,21 @@ from rdkit.Chem import MACCSkeys
 import random
 
 """
-用于 表格数据 + 分子图像数据 测试 获取评价指标
-运行特慢
+    +      Metric
+ 
 """
 parser = argparse.ArgumentParser()
 
 # Integer parameters with no default value and required flag
-parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19 + 167)  # 输入特征维度
-parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=256)  # 弱学习器隐藏层维度
+parser.add_argument('--feat_d', type=int, help='Feature dimension', default=19 + 167)  # Input feature dimension
+parser.add_argument('--hidden_d', type=int, help='Hidden layer dimension', default=256)  # Hidden layer dimension of weak learner
 
-parser.add_argument('--table_dim_in', type=int, default=19)  # 表格数据输入维度
-parser.add_argument('--table_dim_hidden', type=int, default=128)  # 用于提取表格数据特征的网络隐藏层维度
-parser.add_argument('--out_dim', type=int, default=128)  # 表格数据特征 与 分子图像数据特征 的输出维度
-parser.add_argument('--combined_dim', type=int, default=128)  # 表格数据特征 与 分子图像数据特征 融合后的维度
-parser.add_argument('--dim_hidden1', type=int, default=128)  # 融合后的特征走的隐藏层维度
-parser.add_argument('--dim_hidden2', type=int, default=128)  # 融合后的特征走的隐藏层维度
+parser.add_argument('--table_dim_in', type=int, default=19)  # Tabular feature input dimension
+parser.add_argument('--table_dim_hidden', type=int, default=128)  # Note: processed parameter
+parser.add_argument('--out_dim', type=int, default=128)  # Note: processed parameter
+parser.add_argument('--combined_dim', type=int, default=128)  # Note: processed parameter
+parser.add_argument('--dim_hidden1', type=int, default=128)  # Note: processed parameter
+parser.add_argument('--dim_hidden2', type=int, default=128)  # Note: processed parameter
 
 # Float parameters with no default value and required flag
 parser.add_argument('--boost_rate', type=float, help='Boosting rate', default=1.0)
@@ -85,7 +85,7 @@ def root_mse(net_ensemble, loader):
     for x, image_data, y in loader:
         if args.cuda:
             x = x.to(device)
-            image_data = image_data.to(device) # 2025.3.7加
+            image_data = image_data.to(device) # 2025.3.7
         with torch.no_grad():
             _, out = net_ensemble.forward(x, image_data)
         y = y.cpu().numpy().reshape(len(y), 1)
@@ -108,28 +108,28 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
 
 
-# 定义收集预测结果的函数
+# RESULTS
 def get_predictions(net_ensemble, loader):
-    net_ensemble.to_eval()  # 切换到评估模式
+    net_ensemble.to_eval()  # Note: processed parameter
     all_preds = []
     all_labels = []
 
     with torch.no_grad():
         for x, image_data, y in loader:
-            # 移动数据到设备
+            # Note: processed parameter
             if args.cuda:
                 x = x.to(device)
                 image_data = image_data.to(device)
                 y = y.to(device)
 
-            # 执行预测
+            # Note: processed parameter
             _, preds = net_ensemble.forward(x, image_data)
 
-            # 收集结果
+            # RESULTS
             all_preds.append(preds.cpu())
             all_labels.append(y.cpu())
 
-    # 合并所有批次的预测结果
+    # RESULTS
     return torch.cat(all_preds).numpy(), torch.cat(all_labels).numpy()
 
 def worker_init_fn(worker_id):
@@ -139,44 +139,44 @@ def worker_init_fn(worker_id):
 
 def set_seed(seed):
     import os
-    os.environ['PYTHONHASHSEED'] = str(seed)  # 新增
+    os.environ['PYTHONHASHSEED'] = str(seed)  # Note: processed parameter
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True  # 确保CUDA卷积结果一致
-    torch.backends.cudnn.benchmark = False  # 禁用自动优化
+    torch.backends.cudnn.deterministic = True  # CUDA RESULTS
+    torch.backends.cudnn.benchmark = False  # Note: processed parameter
     # os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
 
 if __name__ == "__main__":
-    set_seed(41)  # 设置全局种子
+    set_seed(41)  # Set global random seed
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
     device = torch.device('cuda' if args.cuda and torch.cuda.is_available() else 'cpu')
-    print(f"训练设备：{device}")
-    # 数据路径
+    print(f" ：{device}")
+    # Note: processed parameter
     file_path = "../data/processed/MemTrOC-Dataset.csv"
     data = pd.read_csv(file_path)
     # data = data.head(10)
-    # 提取特征和标签
-    X = data.iloc[:, 4:23].values  # 特征（19维）
-    y = data.iloc[:, 23].values  # 标签
+    # Note: processed parameter
+    X = data.iloc[:, 4:23].values  # 19
+    y = data.iloc[:, 23].values  # Note: processed parameter
 
-    smiles_list = data.iloc[:, 3].values  # 第3列是SMILES
+    smiles_list = data.iloc[:, 3].values  # 3 SMILES
 
-    # 先划分数据集再进行归一化
+    # Note: processed parameter
     X_train, X_test, y_train, y_test, smiles_train, smiles_test = train_test_split(X, y, smiles_list, test_size=0.1,
                                                                                    random_state=41)
     X_train, X_val, y_train, y_val, smiles_train, smiles_val = train_test_split(X_train, y_train, smiles_train,
                                                                                 test_size=0.2 / 0.9, random_state=41)
-    # 只在训练集上拟合归一化器
+    # Train Set
     scaler_X = MinMaxScaler()
     X_train = scaler_X.fit_transform(X_train)
-    X_val = scaler_X.transform(X_val)  # 使用训练集的scaler
-    X_test = scaler_X.transform(X_test)  # 使用训练集的scaler
-    # 转换为 PyTorch Tensor
+    X_val = scaler_X.transform(X_val)  # Train Set scaler
+    X_test = scaler_X.transform(X_test)  # Train Set scaler
+    # Convert to PyTorch Tensor
     X_train_t = torch.tensor(X_train, dtype=torch.float32)
     X_val_t = torch.tensor(X_val, dtype=torch.float32)
     X_test_t = torch.tensor(X_test, dtype=torch.float32)
@@ -185,13 +185,13 @@ if __name__ == "__main__":
     y_val_t = torch.tensor(y_val, dtype=torch.float32).view(-1, 1)
     y_test_t = torch.tensor(y_test, dtype=torch.float32).view(-1, 1)
 
-    # 创建数据集
-    # TabularImageDataset会将smiles转为image
+    # Create dataset
+    # TabularImageDataset smiles image
     train_dataset = TabularImageDataset(X_train_t, smiles_train, y_train_t)
     val_dataset = TabularImageDataset(X_val_t, smiles_val, y_val_t)
     test_dataset = TabularImageDataset(X_test_t, smiles_test, y_test_t)
 
-    # 创建 DataLoader
+    # Create DataLoader
     batch_size = args.batch_size
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
     net_ensemble = DynamicNetForMLPImage.from_file(args.out_f, lambda best_stage: MLP_ResNet.get_model(best_stage, args))
     net_ensemble.to_cuda()
-    # 获取所有预测结果
+    # RESULTS
     train_pred, train_true = get_predictions(net_ensemble, train_loader)
     val_pred, val_true = get_predictions(net_ensemble, val_loader)
     test_pred, test_true = get_predictions(net_ensemble, test_loader)
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     #     (y_val - torch.mean(y_val)) ** 2)
     # R2_test = 1 - torch.mean((y_test - prediction_test) ** 2) / torch.mean(
     #     (y_test - torch.mean(y_test)) ** 2)
-    print("------------------------结果------------------------")
+    print("------------------------RESULTS------------------------")
     print(f'train: R2：{R2_train}\n')
     print(f'val: R2：{R2_val}\n')
     print(f'test: R2：{R2_test}\n')
@@ -245,12 +245,12 @@ if __name__ == "__main__":
     # Save the trained model (optional)
     # torch.save(trained_model.state_dict(), 'checkpoint/1DGBCNN_model.pth')
 
-    # 计算训练集、验证集和测试集上的MAE
+    # Train Set、Validation Set Test Set MAE
     mae_train = mean_absolute_error(y_train, prediction_train)
     mae_val = mean_absolute_error(y_val, prediction_val)
     mae_test = mean_absolute_error(y_test, prediction_test)
 
-    # # 计算训练集、验证集和测试集上的MAPE
+    # #  Train Set、Validation Set Test Set MAPE
     # mape_train = mean_absolute_percentage_error(y_train.numpy(), prediction_train.detach().numpy())
     # mape_val = mean_absolute_percentage_error(y_val.numpy(), prediction_val.detach().numpy())
     # mape_test = mean_absolute_percentage_error(y_test.numpy(), prediction_test.detach().numpy())
@@ -262,35 +262,35 @@ if __name__ == "__main__":
     # print(f'val: MAPE：{mape_val}\n')
     # print(f'test: MAPE：{mape_test}\n')
 
-    # 保存到日志文件
+    # Save results to log file
     argsDict = args.__dict__
-    # 将结果和超参数保存到日志文件
+    # RESULTS Save results to log file
     log_path = '../checkpoint/tableImageTrain_log.txt'
 
-    with open(log_path, 'a', encoding='utf-8') as f:  # 使用追加模式，并指定编码为utf-8
-        # 添加文件顶部的分割线
+    with open(log_path, 'a', encoding='utf-8') as f:  # utf-8
+        # Add file header delimiter
         f.write("\n" + "=" * 60 + "\n")
-        f.write("{" + "训练结果记录".center(58) + "}\n")
+        f.write("{" + "Training Results Record".center(58) + "}\n")
         f.write("=" * 60 + "\n\n")
 
-        # 保存训练、验证、测试集的评价指标
-        f.write("## 模型评估指标\n")
+        # 、 、Test Set Metric
+        f.write("## Model Evaluation Metrics\n")
         f.write("-" * 60 + "\n")
-        f.write("|       指标       |  训练集  |  验证集  |  测试集  |\n")
+        f.write("|       Metric       |  Train Set  |  Validation Set  |  Test Set  |\n")
         f.write("-" * 60 + "\n")
-        f.write(f"|     R² 值     | {R2_train:.4f}    | {R2_val:.4f}    | {R2_test:.4f}    |\n")
+        f.write(f"|     R² Value     | {R2_train:.4f}    | {R2_val:.4f}    | {R2_test:.4f}    |\n")
         f.write(f"|     RMSE     | {rmse_train:.4f}    | {rmse_val:.4f}    | {rmse_test:.4f}    |\n")
         f.write(f"|     MAE      | {mae_train:.4f}    | {mae_val:.4f}    | {mae_test:.4f}    |\n")
         f.write("-" * 60 + "\n\n")
 
-        # 保存超参数
-        f.write("## 超参数设置\n")
+        # Save hyperparameters
+        f.write("## Hyperparameter Settings\n")
         f.write("-" * 60 + "\n")
-        f.write("名称 | 值\n")
+        f.write("Name | Value\n")
         f.write("-" * 60 + "\n")
         for eachArg, value in argsDict.items():
             f.write(f"{eachArg.ljust(20)} | {str(value).ljust(40)}\n")
         f.write("-" * 60 + "\n\n")
 
-        # 文件底部的分割线
+        # Add file footer delimiter
         f.write("=" * 60 + "\n\n")

@@ -1,27 +1,18 @@
-# 将xlsx转为csv
+"""
+Utility script to convert raw Excel (.xlsx) datasets into CSV format.
+"""
+import os
 import pandas as pd
 
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+xlsx_file_path = os.path.join(base_dir, 'data', 'processed', 'MemTrOC-Dataset.xlsx')
+csv_file_path = os.path.join(base_dir, 'data', 'processed', 'MemTrOC-Dataset.csv')
 
-# 指定你的xlsx文件路径和输出csv文件路径
-xlsx_file_path = '../../data/processed/MemTrOC-Dataset.xlsx'
-csv_file_path = '../../data/processed/MemTrOC-Dataset.csv'
-
-# 读取Excel文件
-file_path = xlsx_file_path  # 替换为你的Excel文件路径
-excel_file = pd.ExcelFile(file_path)
-
-# 获取第三个sheet的名字（索引从0开始，所以第三个sheet的索引是2）
-sheet_name = excel_file.sheet_names[0]
-
-# 读取第三个sheet的数据
-df = pd.read_excel(excel_file, sheet_name=sheet_name)
-
-# 将数据写入CSV文件
-csv_file_path = csv_file_path  # 替换为你想要保存的CSV文件路径
-df.to_csv(csv_file_path, index=False)
-
-print(f"工作表 '{sheet_name}' 已成功转换为 CSV 文件: {csv_file_path}")
-
-
-
-
+if os.path.exists(xlsx_file_path):
+    excel_file = pd.ExcelFile(xlsx_file_path)
+    sheet_name = excel_file.sheet_names[0]
+    df = pd.read_excel(excel_file, sheet_name=sheet_name)
+    df.to_csv(csv_file_path, index=False)
+    print(f"Sheet '{sheet_name}' successfully converted to CSV: {csv_file_path}")
+else:
+    print(f"File not found: {xlsx_file_path}")
