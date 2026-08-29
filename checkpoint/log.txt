@@ -1,0 +1,342 @@
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9635    | 0.8633    | 0.9014    |
+|     RMSE     | 5.1581    | 10.5977    | 9.1118    |
+|     MAE      | 3.3515    | 6.8016    | 6.1691    |
+------------------------------------------------------------
+
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 3                                       
+batch_size           | 256                                     
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | ../checkpoint/best_GrowTableGraphNN_0225.pth
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9618    | 0.8618    | 0.8948    |
+|     RMSE     | 5.2724    | 10.6573    | 9.4087    |
+|     MAE      | 3.4622    | 6.8895    | 6.5669    |
+------------------------------------------------------------
+
+best_stage: {best_stage}
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 3                                       
+batch_size           | 256                                     
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | ../checkpoint/best_GrowTableGraphNN_0606.pth
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9802    | 0.8614    | 0.8885    |
+|     RMSE     | 3.7969    | 10.6724    | 9.6881    |
+|     MAE      | 2.3151    | 6.5280    | 6.3269    |
+------------------------------------------------------------
+
+best_stage: 1
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 8                                       
+batch_size           | 64                                      
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | ../checkpoint/best_GrowTableGraphNN_0912.pth
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.2198    | 0.2250    | 0.2278    |
+|     RMSE     | 23.8398    | 25.2365    | 25.4969    |
+|     MAE      | 18.5587    | 19.5997    | 19.5276    |
+------------------------------------------------------------
+
+best_stage: 0
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 1                                       
+batch_size           | 64                                      
+epochs_per_stage     | 2                                       
+correct_epoch        | 2                                       
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | D:/mgbnenv/smoke.pth                    
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9632    | 0.8594    | 0.9047    |
+|     RMSE     | 5.1750    | 10.7475    | 8.9591    |
+|     MAE      | 3.3950    | 6.8843    | 6.1144    |
+------------------------------------------------------------
+
+best_stage: 2
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 3                                       
+batch_size           | 256                                     
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | D:/mgbn_out/runA_paperconfig.pth        
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9634    | 0.8507    | 0.9027    |
+|     RMSE     | 5.1660    | 11.0783    | 9.0512    |
+|     MAE      | 3.3897    | 6.9744    | 6.1781    |
+------------------------------------------------------------
+
+best_stage: 2
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 3                                       
+batch_size           | 256                                     
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | D:\mgbn_out\demo_graph.pth              
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{                          Training Results Record                          }
+============================================================
+
+## Model Evaluation Metrics
+------------------------------------------------------------
+|       Metric       |  Train Set  |  Validation Set  |  Test Set  |
+------------------------------------------------------------
+|     R² Value     | 0.9628    | 0.8618    | 0.9046    |
+|     RMSE     | 5.2066    | 10.6577    | 8.9607    |
+|     MAE      | 3.4000    | 6.8425    | 6.1270    |
+------------------------------------------------------------
+
+best_stage: 2
+## Hyperparameter Settings
+------------------------------------------------------------
+Name | Value
+------------------------------------------------------------
+feat_d               | 19                                      
+hidden_d             | 128                                     
+table_dim_in         | 19                                      
+table_dim_hidden     | 128                                     
+gnn_input_dim        | 9                                       
+out_dim              | 128                                     
+gnn_hidden           | 128                                     
+combined_dim         | 128                                     
+dim_hidden1          | 128                                     
+dim_hidden2          | 128                                     
+boost_rate           | 1.0                                     
+lr                   | 0.001                                   
+L2                   | 0.01                                    
+num_nets             | 3                                       
+batch_size           | 256                                     
+epochs_per_stage     | 100                                     
+correct_epoch        | 100                                     
+data                 | None                                    
+tr                   | None                                    
+te                   | None                                    
+out_f                | D:\mgbn_out\demo_graph.pth              
+sparse               | False                                   
+normalization        | False                                   
+cv                   | True                                    
+cuda                 | False                                   
+------------------------------------------------------------
+
+============================================================
+
+
+============================================================
+{ 5-Fold Cross-Validation Ensemble Results }
+============================================================
+OOF CV: R2 = 0.0600, RMSE = 26.5411, MAE = 20.6634
+5-Fold Ensemble Test: R2 = 0.0674, RMSE = 28.0201, MAE = 21.4564
+============================================================
+

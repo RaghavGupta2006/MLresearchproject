@@ -1,0 +1,99 @@
+{
+  "best_config": {
+    "gnn_type": "gine",
+    "node_dim": 9,
+    "edge_dim": 3,
+    "hidden_dim": 128,
+    "gnn_layers": 2,
+    "gnn_heads": 4,
+    "gnn_dropout": 0.2,
+    "use_virtual_node": true,
+    "table_dim": 24,
+    "table_layers": 2,
+    "table_dropout": 0.2,
+    "fusion_type": "cross_attention",
+    "fusion_heads": 4,
+    "fusion_dropout": 0.1,
+    "pred_hidden": 64,
+    "pred_dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "batch_size": 64,
+    "epochs": 90,
+    "patience": 18,
+    "use_physics_loss": false,
+    "lambda_steric": 0.1,
+    "lambda_bounds": 0.01,
+    "use_huber": true,
+    "huber_delta": 5.0,
+    "seed": 42
+  },
+  "best_metrics": {
+    "test_r2": 0.9084966778755188,
+    "test_rmse": 8.776700942333193,
+    "test_mae": 5.850779056549072
+  },
+  "generation": 1,
+  "total_candidates": 4,
+  "all_results_summary": [
+    {
+      "generation": 0,
+      "mutations": "BASE",
+      "test_r2": 0.9084966778755188,
+      "test_rmse": 8.776700942333193,
+      "test_mae": 5.850779056549072,
+      "train_r2": 0.9437578320503235,
+      "val_r2": 0.8530541062355042,
+      "params": 381442,
+      "time": 64.80547595024109,
+      "is_best": true
+    },
+    {
+      "generation": 1,
+      "mutations": {
+        "use_physics_loss": "False -> True",
+        "gnn_heads": "4 -> 8"
+      },
+      "test_r2": 0.8604910969734192,
+      "test_rmse": 10.83711747811082,
+      "test_mae": 6.9169816970825195,
+      "train_r2": 0.8727612495422363,
+      "val_r2": 0.8040040135383606,
+      "params": 381442,
+      "time": 45.59209871292114,
+      "is_best": false
+    },
+    {
+      "generation": 1,
+      "mutations": {
+        "use_physics_loss": "False -> True",
+        "gnn_heads": "4 -> 8"
+      },
+      "test_r2": 0.8534177541732788,
+      "test_rmse": 11.10845127906388,
+      "test_mae": 6.758615970611572,
+      "train_r2": 0.8850651383399963,
+      "val_r2": 0.8125281929969788,
+      "params": 381442,
+      "time": 58.424049615859985,
+      "is_best": false
+    },
+    {
+      "generation": 1,
+      "mutations": {
+        "use_physics_loss": "False -> True",
+        "gnn_heads": "4 -> 8"
+      },
+      "test_r2": 0.8382757902145386,
+      "test_rmse": 11.668104755233454,
+      "test_mae": 7.1954569816589355,
+      "train_r2": 0.8738834857940674,
+      "val_r2": 0.7994816899299622,
+      "params": 381442,
+      "time": 44.97172260284424,
+      "is_best": false
+    }
+  ]
+}

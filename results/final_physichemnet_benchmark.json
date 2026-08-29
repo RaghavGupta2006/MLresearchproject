@@ -1,0 +1,92 @@
+{
+  "model_name": "PhysiChemNet",
+  "config": {
+    "gnn_type": "gine",
+    "node_dim": 9,
+    "edge_dim": 3,
+    "hidden_dim": 128,
+    "gnn_layers": 2,
+    "gnn_heads": 4,
+    "gnn_dropout": 0.2,
+    "use_virtual_node": true,
+    "table_dim": 24,
+    "table_layers": 2,
+    "table_dropout": 0.2,
+    "fusion_type": "cross_attention",
+    "fusion_heads": 4,
+    "fusion_dropout": 0.1,
+    "pred_hidden": 64,
+    "pred_dropout": 0.2,
+    "lr": 0.001,
+    "weight_decay": 0.001,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "batch_size": 64,
+    "epochs": 90,
+    "patience": 18,
+    "use_physics_loss": false,
+    "lambda_steric": 0.1,
+    "lambda_bounds": 0.01,
+    "use_huber": true,
+    "huber_delta": 5.0,
+    "seed": 42
+  },
+  "single_split": {
+    "train_r2": 0.9437578320503235,
+    "train_rmse": 6.400934759064095,
+    "train_mae": 4.23196268081665,
+    "val_r2": 0.8530541062355042,
+    "val_rmse": 10.989033521063204,
+    "val_mae": 6.8676862716674805,
+    "test_r2": 0.9084966778755188,
+    "test_rmse": 8.776700942333193,
+    "test_mae": 5.850779056549072,
+    "param_count": 381442,
+    "best_epoch": 67
+  },
+  "fold_metrics": [
+    [
+      0.8822360038757324,
+      9.956782604658283,
+      6.5040059089660645
+    ],
+    [
+      0.8164287805557251,
+      12.43125996692348,
+      7.9486002922058105
+    ],
+    [
+      0.8294709324836731,
+      11.981522639699222,
+      7.58018684387207
+    ],
+    [
+      0.8284670114517212,
+      12.016739296307867,
+      7.685083389282227
+    ],
+    [
+      0.8372170925140381,
+      11.706233550150282,
+      7.2460713386535645
+    ]
+  ],
+  "oof_metrics": {
+    "r2": 0.7369923912982059,
+    "rmse": 14.039431475266094,
+    "mae": 8.21119154445254
+  },
+  "ensemble_metrics": {
+    "r2": 0.8754523993756869,
+    "rmse": 10.23954124559094,
+    "mae": 6.7248507165387945
+  },
+  "base_paper_comparison": {
+    "paper_r2": 0.9014,
+    "paper_rmse": 9.1118,
+    "paper_mae": 6.1691,
+    "r2_gain": -0.025947600624313116,
+    "rmse_reduction": -1.12774124559094,
+    "mae_reduction_percent": -9.008619029336439
+  }
+}
